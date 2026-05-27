@@ -1,18 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_projects/pages/details.dart';
-import 'package:flutter_projects/pages/result.dart';
-
+import 'details.dart';
+import 'result.dart';
+import '../services/optimizer_service.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  TextEditingController capitalController = TextEditingController();
-  TextEditingController amountController = TextEditingController();
+  final TextEditingController capitalController = TextEditingController();
+  final TextEditingController amountController = TextEditingController(); // Using this for "Max Diversification" count
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
+
+  final OptimizerService _optimizerService = OptimizerService();
+
+  void _runOptimization() {
+    double capital = double.tryParse(capitalController.text) ?? 0.0;
+
+    if (capital <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid capital amount')),
+      );
+      return;
+    }
+
+    // Call the Knapsack Backtracking Solver
+    final result = _optimizerService.solveKnapsack(
+      capacity: capital,
+      riskPreference: selectedRisk,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultPage(optimizationResult: result),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,20 +56,18 @@ class _HomePageState extends State<HomePage> {
 
         onTap: (index) {
           if (index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => ResultPage()),
-            );
+            // We can't go to result page without a result, so maybe just show empty or run with defaults
+            _runOptimization();
           }
           if (index == 2) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => DetailsPage()),
+              MaterialPageRoute(builder: (context) => const DetailsPage()),
             );
           }
         },
 
-        items: [
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.insert_chart_outlined),
             label: 'Stats',
@@ -59,18 +85,17 @@ class _HomePageState extends State<HomePage> {
 
       body: Column(
         children: [
-
           // Header 
           Container(
             width: double.infinity,
             color: Colors.deepPurple,
-            padding: EdgeInsets.only(
+            padding: const EdgeInsets.only(
               top: 50,
               bottom: 30,
               left: 20,
               right: 20,
             ),
-            child: Column(
+            child: const Column(
               children: [
                 SizedBox(height: 4),
                 Text(
@@ -97,34 +122,33 @@ class _HomePageState extends State<HomePage> {
           // ── Scrollable Body ──────────────────────────────
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   // ── Your Inputs ────────────────────────
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Your Inputs',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
                         ),
-                        Divider(),
+                        const Divider(),
 
                         // Total Capital
                         Row(
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 120,
                               child: Text(
                                 'Total Capital:',
@@ -135,7 +159,7 @@ class _HomePageState extends State<HomePage> {
                               child: TextField(
                                 controller: capitalController,
                                 keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
+                                decoration: const InputDecoration(
                                   hintText: 'Insert Amount',
                                   hintStyle: TextStyle(color: Colors.grey),
                                   border: InputBorder.none,
@@ -145,12 +169,12 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        Divider(),
+                        const Divider(),
 
                         // Time Horizon
                         Row(
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 120,
                               child: Text(
                                 'Time Horizon:',
@@ -161,7 +185,7 @@ class _HomePageState extends State<HomePage> {
                               child: DropdownButton<String>(
                                 value: selectedHorizon,
                                 isExpanded: true,
-                                underline: SizedBox(),
+                                underline: const SizedBox(),
                                 items: ['1 month', '3 months', '6 months', '1 year']
                                     .map((h) => DropdownMenuItem(
                                           value: h,
@@ -177,12 +201,12 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        Divider(),
+                        const Divider(),
 
                         // Risk Level
                         Row(
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 120,
                               child: Text(
                                 'Risk Level:',
@@ -193,7 +217,7 @@ class _HomePageState extends State<HomePage> {
                               child: DropdownButton<String>(
                                 value: selectedRisk,
                                 isExpanded: true,
-                                underline: SizedBox(),
+                                underline: const SizedBox(),
                                 items: ['Conservative', 'Moderate', 'Aggressive']
                                     .map((r) => DropdownMenuItem(
                                           value: r,
@@ -209,15 +233,15 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        Divider(),
+                        const Divider(),
 
-                        // Amount
+                        // Amount (Max Diversification)
                         Row(
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 120,
                               child: Text(
-                                'Amount:',
+                                'Max Options:',
                                 style: TextStyle(fontWeight: FontWeight.w600),
                               ),
                             ),
@@ -225,8 +249,8 @@ class _HomePageState extends State<HomePage> {
                               child: TextField(
                                 controller: amountController,
                                 keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  hintText: 'Insert Amount',
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. 3',
                                   hintStyle: TextStyle(color: Colors.grey),
                                   border: InputBorder.none,
                                   isDense: true,
@@ -239,7 +263,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // ── View ──────────────────────────────
                   Container(
@@ -247,36 +271,31 @@ class _HomePageState extends State<HomePage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'View',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
                         ),
-                        Divider(),
-                        SizedBox(height: 4),
+                        const Divider(),
+                        const SizedBox(height: 4),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => ResultPage()),
-                              );
-                            },
+                            onPressed: _runOptimization,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
-                              padding: EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: Text(
+                            child: const Text(
                               'Backtracking Trace',
                               style: TextStyle(
                                 color: Colors.white,
@@ -290,7 +309,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -300,3 +319,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+

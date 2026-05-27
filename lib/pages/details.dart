@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_projects/pages/home.dart';
-import 'package:flutter_projects/pages/result.dart';
+import 'home.dart';
+import 'result.dart';
 
 class DetailsPage extends StatelessWidget {
   const DetailsPage({super.key});
@@ -8,7 +8,6 @@ class DetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
       // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.deepPurple,
@@ -20,18 +19,18 @@ class DetailsPage extends StatelessWidget {
           if (index == 0) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => ResultPage()),
+              MaterialPageRoute(builder: (context) => const ResultPage()),
             );
           }
           if (index == 1) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => HomePage()),
+              MaterialPageRoute(builder: (context) => const HomePage()),
             );
           }
         },
 
-        items: [
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.insert_chart_outlined),
             label: 'Stats',
@@ -53,13 +52,13 @@ class DetailsPage extends StatelessWidget {
           Container(
             width: double.infinity,
             color: Colors.deepPurple,
-            padding: EdgeInsets.only(
+            padding: const EdgeInsets.only(
               top: 50,
               bottom: 30,
               left: 20,
               right: 20,
             ),
-            child: Column(
+            child: const Column(
               children: [
                 Text(
                   'Investment Optimizer',
@@ -78,42 +77,40 @@ class DetailsPage extends StatelessWidget {
                     letterSpacing: 2,
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
-        ),
- 
-        Expanded(
-        child:SingleChildScrollView(
-          padding:EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Investment Details',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Here are the bank promos offered by PH digital banks and prices of specific ETFs',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                    ),                   
-                  ],
-                ),
-              ),
-              
-              SizedBox(height: 16),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Investment Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Here are the bank promos offered by PH digital banks and prices of specific ETFs',
+                          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // Table List of Bank Rates and ETF's
                   Container(
@@ -121,29 +118,27 @@ class DetailsPage extends StatelessWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Bank Promos & ETF Returns',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
                         ),
-                        Divider(),
-
+                        const Divider(),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
                             // Banks
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Digital Banks (Annual)',
                                     style: TextStyle(
                                       fontSize: 11,
@@ -151,24 +146,23 @@ class DetailsPage extends StatelessWidget {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  SizedBox(height: 8),
-                                  _bankRow('GoTyme',   '6.00%'),
-                                  _bankRow('Tonik',    '6.50%'),
-                                  _bankRow('Maya',     '3.50%'),
-                                  _bankRow('CIMB',     '2.50%'),
+                                  const SizedBox(height: 8),
+                                  _bankRow('GoTyme', '6.00%'),
+                                  _bankRow('Tonik', '6.50%'),
+                                  _bankRow('Maya', '3.50%'),
+                                  _bankRow('CIMB', '2.50%'),
                                   _bankRow('Maribank', '2.50%'),
                                 ],
                               ),
                             ),
-
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
 
                             // ETFs
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'ETFs (avg monthly return)',
                                     style: TextStyle(
                                       fontSize: 11,
@@ -176,7 +170,7 @@ class DetailsPage extends StatelessWidget {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  SizedBox(height: 8),
+                                  const SizedBox(height: 8),
                                   _etfRow('QQQ', '~1.80%'),
                                   _etfRow('VOO', '~1.20%'),
                                   _etfRow('VTI', '~1.15%'),
@@ -185,14 +179,13 @@ class DetailsPage extends StatelessWidget {
                             ),
                           ],
                         ),
-
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
                         // Warning
                         Container(
-                          padding: EdgeInsets.all(8),
-                          color: Color(0xFFFFF3E0),
-                          child: Row(
+                          padding: const EdgeInsets.all(8),
+                          color: const Color(0xFFFFF3E0),
+                          child: const Row(
                             children: [
                               Icon(Icons.warning_amber_rounded,
                                   color: Colors.orange, size: 16),
@@ -212,23 +205,24 @@ class DetailsPage extends StatelessWidget {
                       ],
                     ),
                   ),
-          ],
-        )
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-    )
-      ],
-    )
-  );
-}
- Widget _bankRow(String name, String rate) {
+    );
+  }
+
+  Widget _bankRow(String name, String rate) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(name, style: TextStyle(fontSize: 13)),
+          Text(name, style: const TextStyle(fontSize: 13)),
           Text(rate,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.blue,
@@ -240,13 +234,13 @@ class DetailsPage extends StatelessWidget {
 
   Widget _etfRow(String ticker, String rate) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(ticker, style: TextStyle(fontSize: 13)),
+          Text(ticker, style: const TextStyle(fontSize: 13)),
           Text(rate,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.deepPurple,
