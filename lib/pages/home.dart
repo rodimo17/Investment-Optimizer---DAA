@@ -32,6 +32,8 @@ class _HomePageState extends State<HomePage> {
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
+      timeHorizon: selectedHorizon,
+       maxItems: int.tryParse(amountController.text),
     );
 
     Navigator.push(
