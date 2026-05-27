@@ -58,9 +58,30 @@ class ResultPage extends StatelessWidget {
               left: 20,
               right: 20,
             ),
+            child: Column(
+              children: [
+                Text(
+                  'Investment Optimizer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'RESULTS',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 13,
+                    letterSpacing: 2,
+                  ),
+                ),
+            ],
+          ),
           )
         ],
-      )
+      ),
     );
 }
 }
