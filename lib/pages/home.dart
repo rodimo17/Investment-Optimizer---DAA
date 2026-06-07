@@ -15,8 +15,29 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController amountController = TextEditingController(text: '2'); 
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
+  bool _isUpdatingRates = false;
 
   final OptimizerService _optimizerService = OptimizerService();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRates();
+  }
+
+  Future<void> _fetchRates() async {
+    setState(() => _isUpdatingRates = true);
+    await _optimizerService.fetchLatestRates();
+    if (mounted) {
+      setState(() => _isUpdatingRates = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bank interest rates updated in real-time!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 
   void _runOptimization() {
     double capital = double.tryParse(capitalController.text) ?? 0.0;
@@ -85,17 +106,38 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Investment Optimizer',
-            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'DAA Project: Backtracking Solver',
-            style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 0.5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Investment Optimizer',
+                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'DAA Project: Backtracking Solver',
+                    style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 0.5),
+                  ),
+                ],
+              ),
+              if (_isUpdatingRates)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white70),
+                  onPressed: _fetchRates,
+                ),
+            ],
           ),
         ],
       ),

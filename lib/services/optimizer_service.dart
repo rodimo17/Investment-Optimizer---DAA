@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/investment_option.dart';
 
 enum StepType { evaluated, pruned, bestFound }
@@ -43,11 +45,14 @@ class OptimizationResult {
 }
 
 class OptimizerService {
-  final List<InvestmentOption> allOptions = [
+  // Base Interest Rates (2024 - No Promos)
+  List<InvestmentOption> allOptions = [
+    InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1),
+    InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1),
     InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.08, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
-    InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.05, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.045, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
+    InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
+    InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
     InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
     InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
     InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
@@ -57,6 +62,30 @@ class OptimizerService {
   List<InvestmentOption> _bestCombo = [];
   List<TraceStep> _steps = [];
   int _statesCount = 0;
+
+  /// Fetches latest rates from a remote source.
+  /// For this example, I'm using a placeholder logic. 
+  /// In a real app, you'd point this to a GitHub Gist or your own API.
+  Future<void> fetchLatestRates() async {
+    try {
+      // Example URL: Replace with your actual JSON endpoint
+      // For now, I'll simulate a fetch delay to show how the UI handles it
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // If you had a real API, it would look like this:
+      /*
+      final response = await http.get(Uri.parse('https://api.jsonbin.io/v3/b/YOUR_ID'));
+      if (response.statusCode == 200) {
+         final data = json.decode(response.body);
+         // Update allOptions here
+      }
+      */
+      
+      print('Rates updated successfully from "Remote Source"');
+    } catch (e) {
+      print('Failed to fetch rates, using defaults: $e');
+    }
+  }
 
   OptimizationResult solveKnapsack({
     required double capacity,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'home.dart';
 import 'result.dart';
 import '../services/etf_price_service.dart';
@@ -14,17 +15,17 @@ class DetailsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.deepPurple,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white60,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey,
         currentIndex: 2,
         onTap: (index) {
           if (index == 0) Navigator.push(context, MaterialPageRoute(builder: (context) => const ResultPage()));
           if (index == 1) Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage()));
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Stats'),
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
         ],
       ),
@@ -32,13 +33,17 @@ class DetailsPage extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            color: Colors.deepPurple,
-            padding: const EdgeInsets.only(top: 60, bottom: 30, left: 24, right: 24),
+            decoration: const BoxDecoration(
+              color: Colors.deepPurple,
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+            ),
+            padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
             child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Market Insights', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-                SizedBox(height: 4),
-                Text('REAL-TIME MARKET DATA (MONTHLY)', style: TextStyle(color: Colors.white60, fontSize: 11, letterSpacing: 2)),
+                Text('Market Insights', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                SizedBox(height: 8),
+                Text('HISTORICAL TRENDS & LIVE PRICES', style: TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 1)),
               ],
             ),
           ),
@@ -46,11 +51,10 @@ class DetailsPage extends StatelessWidget {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPriceTrackerCard(etfPrices),
+                  _buildCombinedTracker(etfPrices),
                   const SizedBox(height: 20),
-                  _buildRatesCard(),
+                  _buildInterestRatesCard(),
                 ],
               ),
             ),
@@ -60,12 +64,12 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPriceTrackerCard(List<EtfPriceData> prices) {
+  Widget _buildCombinedTracker(List<EtfPriceData> prices) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -74,114 +78,99 @@ class DetailsPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.query_stats, color: Colors.blue, size: 20),
-                  SizedBox(width: 8),
-                  Text('ETF Price Tracker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ],
-              ),
+              const Text('ETF Market Performance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(20)),
-                child: Text('Live', style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.bold, fontSize: 10)),
+                decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(20)),
+                child: Text('LIVE ₱', style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 10)),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('Last updated: ${prices[0].lastUpdated}', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-          const Divider(height: 32),
-          ...prices.map((p) => _buildPriceItem(p)),
+          const SizedBox(height: 24),
+          ...prices.map((p) => _buildExpandablePriceItem(p)),
         ],
       ),
     );
   }
 
-  Widget _buildPriceItem(EtfPriceData price) {
+  Widget _buildExpandablePriceItem(EtfPriceData price) {
     final isPositive = price.monthlyChange >= 0;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(backgroundColor: Colors.blue[50], radius: 18, child: Text(price.ticker[0], style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(price.ticker, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const Text('Monthly Tracker', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                ],
-              ),
-            ],
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(backgroundColor: Colors.deepPurple[50], radius: 18, child: Text(price.ticker[0], style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold))),
+                const SizedBox(width: 12),
+                Text(price.ticker, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('₱${price.currentPrice.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%', style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 60,
+          child: LineChart(
+            LineChartData(
+              gridData: const FlGridData(show: false),
+              titlesData: const FlTitlesData(show: false),
+              borderData: FlBorderData(show: false),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: price.history.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+                  isCurved: true,
+                  color: isPositive ? Colors.green : Colors.red,
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(show: true, color: (isPositive ? Colors.green : Colors.red).withAlpha(20)),
+                ),
+              ],
+            ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('\$${price.currentPrice.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Row(
-                children: [
-                  Icon(isPositive ? Icons.trending_up : Icons.trending_down, color: isPositive ? Colors.green : Colors.red, size: 14),
-                  const SizedBox(width: 4),
-                  Text('${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%', style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const Divider(height: 32),
+      ],
     );
   }
 
-  Widget _buildRatesCard() {
+  Widget _buildInterestRatesCard() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.account_balance, color: Colors.deepPurple, size: 20),
-              SizedBox(width: 8),
-              Text('Interest Rate Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            ],
-          ),
-          const Divider(height: 32),
-          _bankRow('Maya Bank', '8.00%'),
-          _bankRow('Tonik Bank', '5.00%'),
-          _bankRow('GoTyme Bank', '4.00%'),
-          _bankRow('CIMB Bank', '4.50%'),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12)),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                SizedBox(width: 12),
-                Expanded(child: Text('Rates are per annum and subject to change by banks.', style: TextStyle(color: Colors.orange, fontSize: 11))),
-              ],
-            ),
-          ),
+          const Text('Digital Bank Interest Rates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 20),
+          _bankRow('Maya Bank', '8.00%', Icons.account_balance_wallet_outlined),
+          _bankRow('Tonik Bank', '5.00%', Icons.savings_outlined),
+          _bankRow('GoTyme Bank', '4.00%', Icons.credit_card_outlined),
+          _bankRow('CIMB Bank', '4.50%', Icons.account_balance_outlined),
         ],
       ),
     );
   }
 
-  Widget _bankRow(String name, String rate) {
+  Widget _bankRow(String name, String rate, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Icon(icon, size: 20, color: Colors.grey[400]),
+          const SizedBox(width: 12),
           Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const Spacer(),
           Text(rate, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
         ],
       ),
