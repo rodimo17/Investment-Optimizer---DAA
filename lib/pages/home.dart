@@ -36,80 +36,33 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  String formatMoney(double value) {
+    return '₱${value.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('Investment combo finder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.deepPurple,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Investment combo finder',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Finds the best 1 bank + 1 ETF pairing for your capital using backtracking knapsack.',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.more_horiz, color: Colors.grey),
-                    onPressed: () {},
-                  ),
-                ],
+              Text(
+                'Finds the best 1 bank + 1 ETF pairing for your capital using backtracking knapsack.',
+                style: TextStyle(color: Colors.grey[700], fontSize: 14),
               ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildInputLabel('Capital (₱)', capitalController),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: _buildDropdownLabel('Risk appetite'),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: _buildInputLabel('Months to hold', monthsController),
-                  ),
-                ],
-              ),
+              _buildInputSection(),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _runOptimization,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E1E1E),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: Colors.grey, width: 0.5),
-                  ),
-                ),
-                icon: const Text('Find best combination'),
-                label: const Icon(Icons.north_east, size: 16),
-              ),
+              _buildActionButton(),
               const SizedBox(height: 32),
               if (_result != null) ...[
                 _buildTraceSection(),
@@ -123,25 +76,58 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildInputSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildInputLabel('Capital (₱)', capitalController),
+          const SizedBox(height: 16),
+          _buildDropdownLabel('Risk appetite'),
+          const SizedBox(height: 16),
+          _buildInputLabel('Months to hold', monthsController),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _runOptimization,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: const Text('Find best combination', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        label: const Icon(Icons.north_east, size: 18),
+      ),
+    );
+  }
+
   Widget _buildInputLabel(String label, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFF1E1E1E),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.grey),
-            ),
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey[300]!)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey[300]!)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
         ),
@@ -153,36 +139,21 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: Colors.grey[50],
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey),
+            border: Border.all(color: Colors.grey[300]!),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedRisk,
-              dropdownColor: const Color(0xFF1E1E1E),
-              style: const TextStyle(color: Colors.white),
               isExpanded: true,
-              items: ['Low — conservative', 'Medium — balanced', 'High — aggressive']
-                  .map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  selectedRisk = newValue!;
-                });
-              },
+              items: ['Low — conservative', 'Medium — balanced', 'High — aggressive'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: (v) => setState(() => selectedRisk = v!),
             ),
           ),
         ),
@@ -195,43 +166,23 @@ class _HomePageState extends State<HomePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Backtracking trace',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
+          const Text('Backtracking trace', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
           const SizedBox(height: 16),
-          ..._result!.trace.map((line) {
-            bool isPruned = line.startsWith('X');
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                line,
-                style: TextStyle(
-                  color: isPruned ? Colors.grey : Colors.white70,
-                  fontSize: 13,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 16),
+          ..._result!.trace.map((line) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(line, style: TextStyle(color: line.startsWith('X') ? Colors.grey : Colors.black87, fontSize: 13, fontFamily: 'monospace')),
+              )),
+          const SizedBox(height: 12),
           Text(
-            'Best combo selected: ${_result!.bank?.name} + ${_result!.etf?.name}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+            'Best combo: ${_result!.bank?.name ?? "None"} + ${_result!.etf?.name ?? "None"}',
+            style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold, fontSize: 14),
           ),
         ],
       ),
@@ -239,27 +190,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecommendationSection() {
+    double capital = double.tryParse(capitalController.text) ?? 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recommended: ${_result!.bank?.name} + ${_result!.etf?.name}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
+        Text('Recommended: ${_result!.bank?.name ?? "N/A"} + ${_result!.etf?.name ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
         const SizedBox(height: 24),
-        Row(
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          childAspectRatio: 2.2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
           children: [
-            _buildResultCard('Total projected return', '₱${_result!.totalReturn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'),
-            const SizedBox(width: 12),
-            _buildResultCard('Return on capital', '${_result!.returnPercentage.toStringAsFixed(2)}%'),
-            const SizedBox(width: 12),
-            _buildResultCard('Bank allocation', '₱${((double.tryParse(capitalController.text) ?? 0) / 2).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'),
-            const SizedBox(width: 12),
-            _buildResultCard('ETF allocation', '₱${((double.tryParse(capitalController.text) ?? 0) / 2).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'),
+            _buildResultCard('Total return', formatMoney(_result!.totalReturn)),
+            _buildResultCard('Final Value', formatMoney(capital + _result!.totalReturn)),
+            _buildResultCard('Bank Allocation', formatMoney(capital / 2)),
+            _buildResultCard('ETF Allocation', formatMoney(capital / 2)),
           ],
         ),
       ],
@@ -267,31 +215,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildResultCard(String label, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepPurple[100]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(label, style: TextStyle(color: Colors.deepPurple[700], fontSize: 11)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+        ],
       ),
     );
   }
