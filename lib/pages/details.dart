@@ -19,7 +19,7 @@ class DetailsPage extends StatelessWidget {
           if (index == 0) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const ResultPage()),
+              MaterialPageRoute(builder: (context) => ResultPage()),
             );
           }
           if (index == 1) {

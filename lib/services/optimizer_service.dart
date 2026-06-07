@@ -1,108 +1,144 @@
 import '../models/investment_option.dart';
 
+enum StepType { evaluated, pruned, bestFound }
+
+class TraceStep {
+  final StepType type;
+  final String title;
+  final String description;
+  final double? profit;
+
+  TraceStep({
+    required this.type,
+    required this.title,
+    required this.description,
+    this.profit,
+  });
+}
+
+class Allocation {
+  final InvestmentOption option;
+  final double amount;
+  final double profit;
+
+  Allocation({required this.option, required this.amount, required this.profit});
+}
+
 class OptimizationResult {
-  final List<InvestmentOption> selectedOptions;
-  final double totalProfit; // Total monetary profit in ₱
-  final List<String> trace;
+  final List<Allocation> allocations;
+  final double totalProfit;
+  final List<TraceStep> steps;
 
   OptimizationResult({
-    required this.selectedOptions,
+    required this.allocations,
     required this.totalProfit,
-    required this.trace,
+    required this.steps,
   });
 }
 
 class OptimizerService {
   final List<InvestmentOption> allOptions = [
-    // Banks: Weight (Min Deposit), Value (Return Rate)
-    InvestmentOption(name: 'GoTyme', annualReturnRate: 0.06, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'Tonik', annualReturnRate: 0.065, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1000),
-    InvestmentOption(name: 'Maya', annualReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
-    InvestmentOption(name: 'CIMB', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
-    
-    // ETFs: Usually require higher entry (Weights)
-    InvestmentOption(name: 'QQQ', annualReturnRate: 0.21, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
-    InvestmentOption(name: 'VOO', annualReturnRate: 0.14, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 3000),
-    InvestmentOption(name: 'VTI', annualReturnRate: 0.13, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.08, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
+    InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.05, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
+    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
   ];
 
-  List<String> _currentTrace = [];
-  double _maxProfit = 0.0;
-  List<InvestmentOption> _bestCombination = [];
+  double _maxProfit = -1.0;
+  List<InvestmentOption> _bestCombo = [];
+  List<TraceStep> _steps = [];
 
   OptimizationResult solveKnapsack({
-    required double capacity, // User's Total Capital
+    required double capacity,
     required String riskPreference,
+    required String horizon,
+    required int maxOptions,
   }) {
-    _currentTrace = [];
-    _maxProfit = 0.0;
-    _bestCombination = [];
+    _maxProfit = -1.0;
+    _bestCombo = [];
+    _steps = [];
 
-    // 1. Pre-filter by risk
+    double timeFactor = horizon == '1 month' ? 1/12 : horizon == '3 months' ? 3/12 : horizon == '6 months' ? 6/12 : 1.0;
+
     List<InvestmentOption> available = allOptions.where((opt) {
       if (riskPreference == 'Conservative') return opt.riskLevel == 'Conservative';
       if (riskPreference == 'Moderate') return opt.riskLevel != 'Aggressive';
       return true;
     }).toList();
 
-    // 2. Sort by Value/Weight ratio
-    available.sort((a, b) => (b.value / b.minInvestment).compareTo(a.value / a.minInvestment));
+    _backtrack(available, 0, [], capacity, maxOptions, timeFactor);
 
-    _currentTrace.add('Starting Knapsack Backtracking...');
-    _currentTrace.add('Capacity: ₱${capacity.toStringAsFixed(0)}');
-    
-    _backtrack(available, 0, capacity, 0.0, []);
+    List<Allocation> finalAllocations = [];
+    if (_bestCombo.isNotEmpty) {
+      double splitAmount = capacity / _bestCombo.length;
+      for (var item in _bestCombo) {
+        finalAllocations.add(Allocation(
+          option: item,
+          amount: splitAmount,
+          profit: splitAmount * (item.annualReturnRate * timeFactor),
+        ));
+      }
+    }
 
     return OptimizationResult(
-      selectedOptions: _bestCombination,
+      allocations: finalAllocations,
       totalProfit: _maxProfit,
-      trace: _currentTrace,
+      steps: _steps,
     );
   }
 
-  void _backtrack(
-    List<InvestmentOption> options,
-    int index,
-    double remainingCapacity,
-    double currentProfit,
-    List<InvestmentOption> currentSelection,
-  ) {
-    if (index == options.length) {
-      if (currentProfit > _maxProfit) {
-        _maxProfit = currentProfit;
-        _bestCombination = List.from(currentSelection);
-        _currentTrace.add('Found better combo: [${currentSelection.map((e) => e.name).join(", ")}] | Total Profit: ₱${_maxProfit.toStringAsFixed(0)}');
+  void _backtrack(List<InvestmentOption> options, int index, List<InvestmentOption> current, double capacity, int limit, double timeFactor) {
+    if (index == options.length || current.length == limit) {
+      if (current.isNotEmpty) {
+        bool hasBank = current.any((o) => o.type == InvestmentType.bank);
+        bool hasEtf = current.any((o) => o.type == InvestmentType.etf);
+
+        String comboName = current.map((e) => e.name).join(" + ");
+
+        if (limit > 1 && (!hasBank || !hasEtf)) {
+          return;
+        }
+
+        double splitAmount = capacity / current.length;
+        if (current.every((o) => splitAmount >= o.minInvestment)) {
+          double currentP = 0;
+          for (var o in current) {
+            currentP += splitAmount * (o.annualReturnRate * timeFactor);
+          }
+
+          if (currentP > _maxProfit) {
+            _maxProfit = currentP;
+            _bestCombo = List.from(current);
+            _steps.add(TraceStep(
+              type: StepType.bestFound,
+              title: 'New Optimal Combo Found',
+              description: comboName,
+              profit: currentP,
+            ));
+          } else {
+            _steps.add(TraceStep(
+              type: StepType.evaluated,
+              title: 'Evaluated Pairing',
+              description: comboName,
+              profit: currentP,
+            ));
+          }
+        } else {
+          _steps.add(TraceStep(
+            type: StepType.pruned,
+            title: 'Combination Pruned',
+            description: '$comboName (Insufficient capital for minimums)',
+          ));
+        }
       }
       return;
     }
 
-    InvestmentOption item = options[index];
-
-    // Branch 1: Include item (if it fits)
-    if (item.minInvestment <= remainingCapacity) {
-      double profitFromItem = item.minInvestment * item.annualReturnRate;
-      _currentTrace.add('Trying to INCLUDE ${item.name} (Cost: ₱${item.minInvestment.toStringAsFixed(0)}) ➜ Profit: ₱${profitFromItem.toStringAsFixed(0)}');
-      currentSelection.add(item);
-      _backtrack(
-        options,
-        index + 1,
-        remainingCapacity - item.minInvestment,
-        currentProfit + profitFromItem,
-        currentSelection,
-      );
-      currentSelection.removeLast(); // Backtrack
-    } else {
-      _currentTrace.add('Cannot include ${item.name}: Too expensive');
-    }
-
-    // Branch 2: Exclude item
-    _currentTrace.add('Skipping ${item.name}');
-    _backtrack(
-      options,
-      index + 1,
-      remainingCapacity,
-      currentProfit,
-      currentSelection,
-    );
+    current.add(options[index]);
+    _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+    current.removeLast();
+    _backtrack(options, index + 1, current, capacity, limit, timeFactor);
   }
 }

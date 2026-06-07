@@ -20,6 +20,7 @@ class _HomePageState extends State<HomePage> {
 
   void _runOptimization() {
     double capital = double.tryParse(capitalController.text) ?? 0.0;
+    int maxOptions = int.tryParse(amountController.text) ?? 3;
 
     if (capital <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -32,6 +33,8 @@ class _HomePageState extends State<HomePage> {
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
+      horizon: selectedHorizon,
+      maxOptions: maxOptions,
     );
 
     Navigator.push(
