@@ -12,7 +12,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController capitalController = TextEditingController();
-  final TextEditingController amountController = TextEditingController(); // Using this for "Max Diversification" count
+  final TextEditingController amountController = TextEditingController(text: '2'); 
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
 
@@ -20,16 +20,19 @@ class _HomePageState extends State<HomePage> {
 
   void _runOptimization() {
     double capital = double.tryParse(capitalController.text) ?? 0.0;
-    int maxOptions = int.tryParse(amountController.text) ?? 3;
+    int maxOptions = int.tryParse(amountController.text) ?? 2;
 
     if (capital <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid capital amount')),
+        const SnackBar(
+          content: Text('Please enter a valid capital amount'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
 
-    // Call the Knapsack Backtracking Solver
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
@@ -48,271 +51,20 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200],
-
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.deepPurple,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white60,
-        currentIndex: 1, // 1 = home.dart or home page - highlighted currently
-
-        onTap: (index) {
-          if (index == 0) {
-            // We can't go to result page without a result, so maybe just show empty or run with defaults
-            _runOptimization();
-          }
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DetailsPage()),
-            );
-          }
-        },
-
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.insert_chart_outlined),
-            label: 'Stats',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_customize),
-            label: 'Browse',
-          ),
-        ],
-      ),
-
+      backgroundColor: Colors.grey[100],
+      bottomNavigationBar: _buildBottomNav(),
       body: Column(
         children: [
-          // Header 
-          Container(
-            width: double.infinity,
-            color: Colors.deepPurple,
-            padding: const EdgeInsets.only(
-              top: 50,
-              bottom: 30,
-              left: 20,
-              right: 20,
-            ),
-            child: const Column(
-              children: [
-                SizedBox(height: 4),
-                Text(
-                  'Investment Optimizer',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'CALCULATE',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 13,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Scrollable Body ──────────────────────────────
+          _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Your Inputs ────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Your Inputs',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const Divider(),
-
-                        // Total Capital
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 120,
-                              child: Text(
-                                'Total Capital:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: capitalController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  hintText: 'Insert Amount',
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(),
-
-                        // Time Horizon
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 120,
-                              child: Text(
-                                'Time Horizon:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            Expanded(
-                              child: DropdownButton<String>(
-                                value: selectedHorizon,
-                                isExpanded: true,
-                                underline: const SizedBox(),
-                                items: ['1 month', '3 months', '6 months', '1 year']
-                                    .map((h) => DropdownMenuItem(
-                                          value: h,
-                                          child: Text(h),
-                                        ))
-                                    .toList(),
-                                onChanged: (v) {
-                                  setState(() {
-                                    selectedHorizon = v!;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(),
-
-                        // Risk Level
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 120,
-                              child: Text(
-                                'Risk Level:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            Expanded(
-                              child: DropdownButton<String>(
-                                value: selectedRisk,
-                                isExpanded: true,
-                                underline: const SizedBox(),
-                                items: ['Conservative', 'Moderate', 'Aggressive']
-                                    .map((r) => DropdownMenuItem(
-                                          value: r,
-                                          child: Text(r),
-                                        ))
-                                    .toList(),
-                                onChanged: (v) {
-                                  setState(() {
-                                    selectedRisk = v!;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(),
-
-                        // Amount (Max Diversification)
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 120,
-                              child: Text(
-                                'Max Options:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: amountController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  hintText: 'e.g. 3',
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ── View ──────────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'View',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const Divider(),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _runOptimization,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Backtracking Trace',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
+                  _buildInputCard(),
+                  const SizedBox(height: 24),
+                  _buildActionCard(),
                 ],
               ),
             ),
@@ -321,5 +73,188 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-}
 
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.deepPurple,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Investment Optimizer',
+            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'DAA Project: Backtracking Solver',
+            style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.tune, color: Colors.deepPurple, size: 20),
+              SizedBox(width: 8),
+              Text('Configuration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          const Divider(height: 32),
+          _buildInputField(
+            label: 'Total Capital',
+            icon: Icons.account_balance_wallet_outlined,
+            child: TextField(
+              controller: capitalController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              decoration: const InputDecoration(
+                hintText: 'e.g. 100000',
+                border: InputBorder.none,
+                isDense: true,
+                prefixText: '₱ ',
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildInputField(
+            label: 'Time Horizon',
+            icon: Icons.calendar_today_outlined,
+            child: DropdownButton<String>(
+              value: selectedHorizon,
+              isExpanded: true,
+              underline: const SizedBox(),
+              items: ['1 month', '3 months', '6 months', '1 year']
+                  .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                  .toList(),
+              onChanged: (v) => setState(() => selectedHorizon = v!),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildInputField(
+            label: 'Risk Tolerance',
+            icon: Icons.shield_outlined,
+            child: DropdownButton<String>(
+              value: selectedRisk,
+              isExpanded: true,
+              underline: const SizedBox(),
+              items: ['Conservative', 'Moderate', 'Aggressive']
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                  .toList(),
+              onChanged: (v) => setState(() => selectedRisk = v!),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildInputField(
+            label: 'Max Diversification',
+            icon: Icons.grid_view_outlined,
+            child: TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                hintText: 'Number of options',
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField({required String label, required IconData icon, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard() {
+    return Container(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _runOptimization,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          elevation: 5,
+          shadowColor: Colors.deepPurple.withOpacity(0.3),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.analytics_outlined),
+            SizedBox(width: 12),
+            Text('RUN BACKTRACKING SOLVER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+      ),
+      child: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey,
+        currentIndex: 1,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage()));
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
+        ],
+      ),
+    );
+  }
+}

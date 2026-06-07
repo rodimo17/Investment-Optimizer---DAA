@@ -21,18 +21,24 @@ class Allocation {
   final double amount;
   final double profit;
 
-  Allocation({required this.option, required this.amount, required this.profit});
+  Allocation({
+    required this.option,
+    required this.amount,
+    required this.profit,
+  });
 }
 
 class OptimizationResult {
   final List<Allocation> allocations;
   final double totalProfit;
   final List<TraceStep> steps;
+  final int statesExplored;
 
   OptimizationResult({
     required this.allocations,
     required this.totalProfit,
     required this.steps,
+    required this.statesExplored,
   });
 }
 
@@ -41,6 +47,7 @@ class OptimizerService {
     InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
     InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.08, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
     InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.05, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
+    InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.045, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
     InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
     InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
     InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
@@ -49,6 +56,7 @@ class OptimizerService {
   double _maxProfit = -1.0;
   List<InvestmentOption> _bestCombo = [];
   List<TraceStep> _steps = [];
+  int _statesCount = 0;
 
   OptimizationResult solveKnapsack({
     required double capacity,
@@ -59,8 +67,12 @@ class OptimizerService {
     _maxProfit = -1.0;
     _bestCombo = [];
     _steps = [];
+    _statesCount = 0;
 
-    double timeFactor = horizon == '1 month' ? 1/12 : horizon == '3 months' ? 3/12 : horizon == '6 months' ? 6/12 : 1.0;
+    double timeFactor = 1.0;
+    if (horizon == '1 month') timeFactor = 1 / 12;
+    else if (horizon == '3 months') timeFactor = 3 / 12;
+    else if (horizon == '6 months') timeFactor = 6 / 12;
 
     List<InvestmentOption> available = allOptions.where((opt) {
       if (riskPreference == 'Conservative') return opt.riskLevel == 'Conservative';
@@ -74,10 +86,12 @@ class OptimizerService {
     if (_bestCombo.isNotEmpty) {
       double splitAmount = capacity / _bestCombo.length;
       for (var item in _bestCombo) {
+        double profit = splitAmount * (item.annualReturnRate * timeFactor);
+        
         finalAllocations.add(Allocation(
           option: item,
           amount: splitAmount,
-          profit: splitAmount * (item.annualReturnRate * timeFactor),
+          profit: profit,
         ));
       }
     }
@@ -86,59 +100,63 @@ class OptimizerService {
       allocations: finalAllocations,
       totalProfit: _maxProfit,
       steps: _steps,
+      statesExplored: _statesCount,
     );
   }
 
   void _backtrack(List<InvestmentOption> options, int index, List<InvestmentOption> current, double capacity, int limit, double timeFactor) {
+    _statesCount++;
+
     if (index == options.length || current.length == limit) {
       if (current.isNotEmpty) {
         bool hasBank = current.any((o) => o.type == InvestmentType.bank);
         bool hasEtf = current.any((o) => o.type == InvestmentType.etf);
 
-        String comboName = current.map((e) => e.name).join(" + ");
-
-        if (limit > 1 && (!hasBank || !hasEtf)) {
-          return;
-        }
+        if (limit > 1 && (!hasBank || !hasEtf)) return;
 
         double splitAmount = capacity / current.length;
         if (current.every((o) => splitAmount >= o.minInvestment)) {
-          double currentP = 0;
+          double totalProfit = 0;
           for (var o in current) {
-            currentP += splitAmount * (o.annualReturnRate * timeFactor);
+            totalProfit += splitAmount * (o.annualReturnRate * timeFactor);
           }
 
-          if (currentP > _maxProfit) {
-            _maxProfit = currentP;
+          String comboName = current.map((e) => e.name).join(" + ");
+
+          if (totalProfit > _maxProfit) {
+            _maxProfit = totalProfit;
             _bestCombo = List.from(current);
             _steps.add(TraceStep(
               type: StepType.bestFound,
               title: 'New Optimal Combo Found',
               description: comboName,
-              profit: currentP,
+              profit: totalProfit,
             ));
           } else {
             _steps.add(TraceStep(
               type: StepType.evaluated,
-              title: 'Evaluated Pairing',
+              title: 'Evaluated Combo',
               description: comboName,
-              profit: currentP,
+              profit: totalProfit,
             ));
           }
         } else {
           _steps.add(TraceStep(
             type: StepType.pruned,
-            title: 'Combination Pruned',
-            description: '$comboName (Insufficient capital for minimums)',
+            title: 'Constraint Pruned',
+            description: '${current.map((e) => e.name).join("+")} (Insufficient Capital)',
           ));
         }
       }
       return;
     }
 
+    // Branch 1: Include
     current.add(options[index]);
     _backtrack(options, index + 1, current, capacity, limit, timeFactor);
     current.removeLast();
+
+    // Branch 2: Exclude
     _backtrack(options, index + 1, current, capacity, limit, timeFactor);
   }
 }
