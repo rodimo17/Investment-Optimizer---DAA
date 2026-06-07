@@ -181,8 +181,17 @@ class _HomePageState extends State<HomePage> {
               )),
           const SizedBox(height: 12),
           Text(
+<<<<<<< Updated upstream
             'Best combo: ${_result!.bank?.name ?? "None"} + ${_result!.etf?.name ?? "None"}',
             style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold, fontSize: 14),
+=======
+            'Best combo selected: ${_result!.bank?.name ?? "None"} + ${_result!.etf?.name ?? "None"}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+>>>>>>> Stashed changes
           ),
         ],
       ),
@@ -190,11 +199,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecommendationSection() {
+<<<<<<< Updated upstream
     double capital = double.tryParse(capitalController.text) ?? 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Recommended: ${_result!.bank?.name ?? "N/A"} + ${_result!.etf?.name ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+=======
+    String formatMoney(double value) {
+      return '₱${value.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}';
+    }
+
+    double capital = double.tryParse(capitalController.text) ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recommended: ${_result!.bank?.name ?? "N/A"} + ${_result!.etf?.name ?? "N/A"}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+>>>>>>> Stashed changes
         const SizedBox(height: 24),
         GridView.count(
           shrinkWrap: true,
@@ -204,10 +233,20 @@ class _HomePageState extends State<HomePage> {
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           children: [
+<<<<<<< Updated upstream
             _buildResultCard('Total return', formatMoney(_result!.totalReturn)),
             _buildResultCard('Final Value', formatMoney(capital + _result!.totalReturn)),
             _buildResultCard('Bank Allocation', formatMoney(capital / 2)),
             _buildResultCard('ETF Allocation', formatMoney(capital / 2)),
+=======
+            _buildResultCard('Total projected return', formatMoney(_result!.totalReturn)),
+            const SizedBox(width: 12),
+            _buildResultCard('Total portfolio value', formatMoney(capital + _result!.totalReturn)),
+            const SizedBox(width: 12),
+            _buildResultCard('Bank allocation', formatMoney(capital / 2)),
+            const SizedBox(width: 12),
+            _buildResultCard('ETF allocation', formatMoney(capital / 2)),
+>>>>>>> Stashed changes
           ],
         ),
       ],
