@@ -1,108 +1,104 @@
 import '../models/investment_option.dart';
 
 class OptimizationResult {
-  final List<InvestmentOption> selectedOptions;
-  final double totalProfit;
+  final InvestmentOption? bank;
+  final InvestmentOption? etf;
+  final double totalReturn;
+  final double returnPercentage;
   final List<String> trace;
 
   OptimizationResult({
-    required this.selectedOptions,
-    required this.totalProfit,
+    this.bank,
+    this.etf,
+    required this.totalReturn,
+    required this.returnPercentage,
     required this.trace,
   });
 }
 
 class OptimizerService {
-  final List<InvestmentOption> allOptions = [
-    // Banks: Weight (Min Deposit), Value (Return Rate)
-    InvestmentOption(name: 'GoTyme', annualReturnRate: 0.06, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'Tonik', annualReturnRate: 0.065, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1000),
-    InvestmentOption(name: 'Maya', annualReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
-    InvestmentOption(name: 'CIMB', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
-    
-    // ETFs: Usually require higher entry (Weights)
-    InvestmentOption(name: 'QQQ', annualReturnRate: 0.21, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
-    InvestmentOption(name: 'VOO', annualReturnRate: 0.14, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 3000),
-    InvestmentOption(name: 'VTI', annualReturnRate: 0.13, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+  final List<InvestmentOption> banks = [
+    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.08, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
+    InvestmentOption(name: 'CIMB Philippines', annualReturnRate: 0.045, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
+    InvestmentOption(name: 'MariBank PH', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
+    InvestmentOption(name: 'Tonik Digital Bank', annualReturnRate: 0.05, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
   ];
 
-  List<String> _currentTrace = [];
-  double _maxReturn = 0.0;
-  List<InvestmentOption> _bestCombination = [];
+  final List<InvestmentOption> etfs = [
+    InvestmentOption(name: 'VOO', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+    InvestmentOption(name: 'VTI', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
+    InvestmentOption(name: 'QQQ', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
+  ];
 
-  OptimizationResult solveKnapsack({
-    required double capacity, // User's Total Capital
-    required String riskPreference,
+  List<String> _trace = [];
+  double _maxReturn = -1.0;
+  InvestmentOption? _bestBank;
+  InvestmentOption? _bestEtf;
+
+  OptimizationResult findBestCombo({
+    required double capital,
+    required String riskAppetite,
+    required int months,
   }) {
-    _currentTrace = [];
-    _maxReturn = 0.0;
-    _bestCombination = [];
+    _trace = [];
+    _maxReturn = -1.0;
+    _bestBank = null;
+    _bestEtf = null;
 
-    // 1. Pre-filter by risk
-    List<InvestmentOption> available = allOptions.where((opt) {
-      if (riskPreference == 'Conservative') return opt.riskLevel == 'Conservative';
-      if (riskPreference == 'Moderate') return opt.riskLevel != 'Aggressive';
-      return true;
-    }).toList();
-
-    // 2. Sort by Value/Weight ratio (Greedy heuristic for pruning)
-    available.sort((a, b) => (b.value / b.minInvestment).compareTo(a.value / a.minInvestment));
-
-    _currentTrace.add('Starting Knapsack Backtracking...');
-    _currentTrace.add('Capacity: ₱$capacity');
-    
-    _backtrack(available, 0, capacity, 0.0, []);
+    _backtrack(0, capital, riskAppetite, months);
 
     return OptimizationResult(
-      selectedOptions: _bestCombination,
-      totalProfit: _maxReturn,
-      trace: _currentTrace,
+      bank: _bestBank,
+      etf: _bestEtf,
+      totalReturn: _maxReturn,
+      returnPercentage: (capital > 0) ? (_maxReturn / capital) * 100 : 0,
+      trace: _trace,
     );
   }
 
-  void _backtrack(
-    List<InvestmentOption> options,
-    int index,
-    double remainingCapacity,
-    double currentReturn,
-    List<InvestmentOption> currentSelection,
-  ) {
-    // Base Case: No more items or no more capacity
-    if (index == options.length) {
-      if (currentReturn > _maxReturn) {
-        _maxReturn = currentReturn;
-        _bestCombination = List.from(currentSelection);
-        _currentTrace.add('Found better combo: [${currentSelection.map((e) => e.name).join(", ")}] | Total Rate: ${(_maxReturn * 100).toStringAsFixed(2)}%');
-      }
+  void _backtrack(int bankIdx, double capital, String riskAppetite, int months) {
+    if (bankIdx >= banks.length) {
       return;
     }
 
-    InvestmentOption item = options[index];
+    InvestmentOption bank = banks[bankIdx];
+    double bankAllocation = capital / 2;
+    
+    for (var etf in etfs) {
+      double etfAllocation = capital / 2;
+      bool isEtfTooRisky = _isTooRisky(etf.riskLevel, riskAppetite);
+      bool tooExpensive = bankAllocation < bank.minInvestment || etfAllocation < etf.minInvestment;
+      
+      if (isEtfTooRisky) {
+        _trace.add('X Pruned ${bank.name} + ${etf.name} — ETF risk too high for profile');
+      } else if (tooExpensive) {
+        _trace.add('X Pruned ${bank.name} + ${etf.name} — Capital too low for minimum investment');
+      } else {
+        double bankReturn = bankAllocation * (bank.annualReturnRate * (months / 12));
+        double etfReturn = etfAllocation * (etf.annualReturnRate * (months / 12));
+        double totalReturn = bankReturn + etfReturn;
+        double score = (totalReturn / capital) * 100;
 
-    // Branch 1: Include item (if it fits)
-    if (item.minInvestment <= remainingCapacity) {
-      _currentTrace.add('Trying to INCLUDE ${item.name} (Cost: ${item.minInvestment})');
-      currentSelection.add(item);
-      _backtrack(
-        options,
-        index + 1,
-        remainingCapacity - item.minInvestment,
-        currentReturn + item.annualReturnRate,
-        currentSelection,
-      );
-      currentSelection.removeLast(); // Backtrack
-    } else {
-      _currentTrace.add('Cannot include ${item.name}: Too expensive');
+        _trace.add('✓ Evaluated ${bank.name} + ${etf.name} ➜ ₱${totalReturn.toStringAsFixed(0)} return');
+
+        if (totalReturn > _maxReturn) {
+          _maxReturn = totalReturn;
+          _bestBank = bank;
+          _bestEtf = etf;
+        }
+      }
     }
 
-    // Branch 2: Exclude item
-    _currentTrace.add('Skipping ${item.name}');
-    _backtrack(
-      options,
-      index + 1,
-      remainingCapacity,
-      currentReturn,
-      currentSelection,
-    );
+    _backtrack(bankIdx + 1, capital, riskAppetite, months);
+  }
+
+  bool _isTooRisky(String optionRisk, String userRisk) {
+    if (userRisk == 'Low — conservative') {
+      return optionRisk != 'Conservative';
+    } else if (userRisk == 'Medium — balanced') {
+      return optionRisk == 'Aggressive';
+    }
+    return false; // High risk can take anything
   }
 }
