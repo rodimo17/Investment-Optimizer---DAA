@@ -108,16 +108,16 @@ class ResultPage extends StatelessWidget {
                               const Divider(),
                               ...optimizationResult!.selectedOptions.map((opt) => ListTile(
                                     title: Text(opt.name),
-                                    trailing: Text('${(opt.annualReturnRate * 100).toStringAsFixed(2)}% p.a.'),
+                                    trailing: Text('₱${(opt.minInvestment * opt.annualReturnRate).toStringAsFixed(0)} profit'),
                                     subtitle: Text(opt.type.name.toUpperCase()),
                                   )),
                               const Divider(),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Combined Annual Return:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  const Text('Total Projected Profit:', style: TextStyle(fontWeight: FontWeight.bold)),
                                   Text(
-                                    '${(optimizationResult!.totalProfit * 100).toStringAsFixed(2)}%',
+                                    '₱${optimizationResult!.totalProfit.toStringAsFixed(0)}',
                                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16),
                                   ),
                                 ],

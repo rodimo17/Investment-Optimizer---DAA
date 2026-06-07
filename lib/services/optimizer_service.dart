@@ -2,7 +2,7 @@ import '../models/investment_option.dart';
 
 class OptimizationResult {
   final List<InvestmentOption> selectedOptions;
-  final double totalProfit;
+  final double totalProfit; // Total monetary profit in ₱
   final List<String> trace;
 
   OptimizationResult({
@@ -27,7 +27,7 @@ class OptimizerService {
   ];
 
   List<String> _currentTrace = [];
-  double _maxReturn = 0.0;
+  double _maxProfit = 0.0;
   List<InvestmentOption> _bestCombination = [];
 
   OptimizationResult solveKnapsack({
@@ -35,7 +35,7 @@ class OptimizerService {
     required String riskPreference,
   }) {
     _currentTrace = [];
-    _maxReturn = 0.0;
+    _maxProfit = 0.0;
     _bestCombination = [];
 
     // 1. Pre-filter by risk
@@ -45,17 +45,17 @@ class OptimizerService {
       return true;
     }).toList();
 
-    // 2. Sort by Value/Weight ratio (Greedy heuristic for pruning)
+    // 2. Sort by Value/Weight ratio
     available.sort((a, b) => (b.value / b.minInvestment).compareTo(a.value / a.minInvestment));
 
     _currentTrace.add('Starting Knapsack Backtracking...');
-    _currentTrace.add('Capacity: ₱$capacity');
+    _currentTrace.add('Capacity: ₱${capacity.toStringAsFixed(0)}');
     
     _backtrack(available, 0, capacity, 0.0, []);
 
     return OptimizationResult(
       selectedOptions: _bestCombination,
-      totalProfit: _maxReturn,
+      totalProfit: _maxProfit,
       trace: _currentTrace,
     );
   }
@@ -64,15 +64,14 @@ class OptimizerService {
     List<InvestmentOption> options,
     int index,
     double remainingCapacity,
-    double currentReturn,
+    double currentProfit,
     List<InvestmentOption> currentSelection,
   ) {
-    // Base Case: No more items or no more capacity
     if (index == options.length) {
-      if (currentReturn > _maxReturn) {
-        _maxReturn = currentReturn;
+      if (currentProfit > _maxProfit) {
+        _maxProfit = currentProfit;
         _bestCombination = List.from(currentSelection);
-        _currentTrace.add('Found better combo: [${currentSelection.map((e) => e.name).join(", ")}] | Total Rate: ${(_maxReturn * 100).toStringAsFixed(2)}%');
+        _currentTrace.add('Found better combo: [${currentSelection.map((e) => e.name).join(", ")}] | Total Profit: ₱${_maxProfit.toStringAsFixed(0)}');
       }
       return;
     }
@@ -81,13 +80,14 @@ class OptimizerService {
 
     // Branch 1: Include item (if it fits)
     if (item.minInvestment <= remainingCapacity) {
-      _currentTrace.add('Trying to INCLUDE ${item.name} (Cost: ${item.minInvestment})');
+      double profitFromItem = item.minInvestment * item.annualReturnRate;
+      _currentTrace.add('Trying to INCLUDE ${item.name} (Cost: ₱${item.minInvestment.toStringAsFixed(0)}) ➜ Profit: ₱${profitFromItem.toStringAsFixed(0)}');
       currentSelection.add(item);
       _backtrack(
         options,
         index + 1,
         remainingCapacity - item.minInvestment,
-        currentReturn + item.annualReturnRate,
+        currentProfit + profitFromItem,
         currentSelection,
       );
       currentSelection.removeLast(); // Backtrack
@@ -101,7 +101,7 @@ class OptimizerService {
       options,
       index + 1,
       remainingCapacity,
-      currentReturn,
+      currentProfit,
       currentSelection,
     );
   }
