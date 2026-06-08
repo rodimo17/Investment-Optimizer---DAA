@@ -1,8 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/investment_option.dart';
 
-enum StepType { evaluated, pruned, bestFound }
+enum StepType { evaluated, pruned, bestFound, backtrackInfo }
 
 class TraceStep {
   final StepType type;
@@ -21,12 +19,22 @@ class TraceStep {
 class Allocation {
   final InvestmentOption option;
   final double amount;
+  final double highRateAmount;
+  final double baseRateAmount;
+  final double highRateProfit;
+  final double baseRateProfit;
   final double profit;
+  final int rank;
 
   Allocation({
     required this.option,
     required this.amount,
+    required this.highRateAmount,
+    required this.baseRateAmount,
+    required this.highRateProfit,
+    required this.baseRateProfit,
     required this.profit,
+    required this.rank,
   });
 }
 
@@ -45,46 +53,26 @@ class OptimizationResult {
 }
 
 class OptimizerService {
-  // Base Interest Rates (2024 - No Promos)
-  List<InvestmentOption> allOptions = [
-    InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1),
-    InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1),
-    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500),
-    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100),
-    InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50),
-    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
-    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500),
-    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000),
+  final List<InvestmentOption> allOptions = [
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.10, baseReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100, interestCap: 100000, safetyRating: 8, liquidityScore: 10),
+    InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, baseReturnRate: 0.03, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1, interestCap: 400000, safetyRating: 9, liquidityScore: 10),
+    InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, baseReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1, interestCap: 500000, safetyRating: 7, liquidityScore: 9),
+    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, baseReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500, safetyRating: 9, liquidityScore: 10),
+    InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.04, baseReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 500, safetyRating: 8, liquidityScore: 8),
+    InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.025, baseReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 50, safetyRating: 9, liquidityScore: 9),
+    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, baseReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500, safetyRating: 9, liquidityScore: 7),
+    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, baseReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', minInvestment: 2500, safetyRating: 9, liquidityScore: 7),
+    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, baseReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', minInvestment: 5000, safetyRating: 8, liquidityScore: 7),
   ];
 
   double _maxProfit = -1.0;
-  List<InvestmentOption> _bestCombo = [];
+  List<Allocation> _bestAllocations = [];
   List<TraceStep> _steps = [];
   int _statesCount = 0;
 
-  /// Fetches latest rates from a remote source.
-  /// For this example, I'm using a placeholder logic. 
-  /// In a real app, you'd point this to a GitHub Gist or your own API.
   Future<void> fetchLatestRates() async {
-    try {
-      // Example URL: Replace with your actual JSON endpoint
-      // For now, I'll simulate a fetch delay to show how the UI handles it
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // If you had a real API, it would look like this:
-      /*
-      final response = await http.get(Uri.parse('https://api.jsonbin.io/v3/b/YOUR_ID'));
-      if (response.statusCode == 200) {
-         final data = json.decode(response.body);
-         // Update allOptions here
-      }
-      */
-      
-      print('Rates updated successfully from "Remote Source"');
-    } catch (e) {
-      print('Failed to fetch rates, using defaults: $e');
-    }
+    // Simulating delay
+    await Future.delayed(const Duration(milliseconds: 1000));
   }
 
   OptimizationResult solveKnapsack({
@@ -94,7 +82,7 @@ class OptimizerService {
     required int maxOptions,
   }) {
     _maxProfit = -1.0;
-    _bestCombo = [];
+    _bestAllocations = [];
     _steps = [];
     _statesCount = 0;
 
@@ -109,24 +97,11 @@ class OptimizerService {
       return true;
     }).toList();
 
+    // Pure Backtracking for selection
     _backtrack(available, 0, [], capacity, maxOptions, timeFactor);
 
-    List<Allocation> finalAllocations = [];
-    if (_bestCombo.isNotEmpty) {
-      double splitAmount = capacity / _bestCombo.length;
-      for (var item in _bestCombo) {
-        double profit = splitAmount * (item.annualReturnRate * timeFactor);
-        
-        finalAllocations.add(Allocation(
-          option: item,
-          amount: splitAmount,
-          profit: profit,
-        ));
-      }
-    }
-
     return OptimizationResult(
-      allocations: finalAllocations,
+      allocations: _bestAllocations,
       totalProfit: _maxProfit,
       steps: _steps,
       statesExplored: _statesCount,
@@ -138,54 +113,114 @@ class OptimizerService {
 
     if (index == options.length || current.length == limit) {
       if (current.isNotEmpty) {
-        bool hasBank = current.any((o) => o.type == InvestmentType.bank);
-        bool hasEtf = current.any((o) => o.type == InvestmentType.etf);
-
-        if (limit > 1 && (!hasBank || !hasEtf)) return;
-
-        double splitAmount = capacity / current.length;
-        if (current.every((o) => splitAmount >= o.minInvestment)) {
-          double totalProfit = 0;
-          for (var o in current) {
-            totalProfit += splitAmount * (o.annualReturnRate * timeFactor);
-          }
-
-          String comboName = current.map((e) => e.name).join(" + ");
-
-          if (totalProfit > _maxProfit) {
-            _maxProfit = totalProfit;
-            _bestCombo = List.from(current);
-            _steps.add(TraceStep(
-              type: StepType.bestFound,
-              title: 'New Optimal Combo Found',
-              description: comboName,
-              profit: totalProfit,
-            ));
-          } else {
-            _steps.add(TraceStep(
-              type: StepType.evaluated,
-              title: 'Evaluated Combo',
-              description: comboName,
-              profit: totalProfit,
-            ));
-          }
-        } else {
-          _steps.add(TraceStep(
-            type: StepType.pruned,
-            title: 'Constraint Pruned',
-            description: '${current.map((e) => e.name).join("+")} (Insufficient Capital)',
-          ));
-        }
+        _evaluateEqualTiered(current, capacity, timeFactor, limit);
       }
       return;
     }
 
-    // Branch 1: Include
     current.add(options[index]);
     _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+    
+    _steps.add(TraceStep(
+      type: StepType.backtrackInfo,
+      title: 'Backtracking',
+      description: 'Removing ${options[index].name} to explore other combinations',
+    ));
     current.removeLast();
 
-    // Branch 2: Exclude
     _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+  }
+
+  void _evaluateEqualTiered(List<InvestmentOption> selection, double totalCapacity, double timeFactor, int targetLimit) {
+    // Every selected company gets an identical slice of capital
+    double splitAmount = totalCapacity / selection.length;
+    double currentTotalProfit = 0;
+    List<Allocation> currentAllocations = [];
+
+    for (var option in selection) {
+      if (splitAmount < option.minInvestment) {
+        _steps.add(TraceStep(
+          type: StepType.pruned,
+          title: 'Diversification Constraint',
+          description: '${option.name} needs at least ₱${option.minInvestment}',
+        ));
+        return;
+      }
+
+      double highRateAmount = 0;
+      double baseRateAmount = 0;
+      double highRateProfit = 0;
+      double baseRateProfit = 0;
+
+      if (option.interestCap != null) {
+        highRateAmount = splitAmount.clamp(0, option.interestCap!);
+        baseRateAmount = (splitAmount - highRateAmount).clamp(0, double.infinity);
+        
+        highRateProfit = (highRateAmount * option.annualReturnRate) * timeFactor;
+        baseRateProfit = (baseRateAmount * option.baseReturnRate) * timeFactor;
+      } else {
+        highRateAmount = splitAmount;
+        highRateProfit = (splitAmount * option.annualReturnRate) * timeFactor;
+      }
+
+      double totalProfit = highRateProfit + baseRateProfit;
+      currentTotalProfit += totalProfit;
+
+      currentAllocations.add(Allocation(
+        option: option,
+        amount: splitAmount,
+        highRateAmount: highRateAmount,
+        baseRateAmount: baseRateAmount,
+        highRateProfit: highRateProfit,
+        baseRateProfit: baseRateProfit,
+        profit: totalProfit,
+        rank: 0,
+      ));
+    }
+
+    bool isBetter = false;
+    bool currentMeetsLimit = selection.length == targetLimit;
+    
+    if (_bestAllocations.isEmpty) {
+      isBetter = true;
+    } else {
+      bool bestMeetsLimit = _bestAllocations.length == targetLimit;
+      if (currentMeetsLimit && !bestMeetsLimit) {
+        isBetter = true;
+      } else if (currentMeetsLimit == bestMeetsLimit) {
+        isBetter = currentTotalProfit > _maxProfit;
+      }
+    }
+
+    if (isBetter) {
+      _maxProfit = currentTotalProfit;
+      currentAllocations.sort((a, b) => b.option.overallScore.compareTo(a.option.overallScore));
+      _bestAllocations = currentAllocations.asMap().entries.map((e) {
+        return Allocation(
+          option: e.value.option,
+          amount: e.value.amount,
+          highRateAmount: e.value.highRateAmount,
+          baseRateAmount: e.value.baseRateAmount,
+          highRateProfit: e.value.highRateProfit,
+          baseRateProfit: e.value.baseRateProfit,
+          profit: e.value.profit,
+          rank: e.key + 1,
+        );
+      }).toList();
+
+      _steps.add(TraceStep(
+        type: StepType.bestFound,
+        title: currentMeetsLimit ? 'Optimal Diversified Selection' : 'Optimal Selection (Partial)',
+        description: selection.map((e) => e.name).join(" + "),
+        profit: currentTotalProfit,
+      ));
+    } else {
+      _steps.add(TraceStep(
+        type: StepType.evaluated,
+        title: 'Explored Selection',
+        description: selection.map((e) => e.name).join(" + "),
+        profit: currentTotalProfit,
+      ));
+    }
   }
 }

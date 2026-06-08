@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'details.dart';
 import 'result.dart';
 import '../services/optimizer_service.dart';
@@ -16,13 +18,41 @@ class _HomePageState extends State<HomePage> {
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
   bool _isUpdatingRates = false;
+  bool _isCalculating = false;
 
   final OptimizerService _optimizerService = OptimizerService();
+  final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
 
   @override
   void initState() {
     super.initState();
     _fetchRates();
+    capitalController.addListener(_formatCurrency);
+  }
+
+  @override
+  void dispose() {
+    capitalController.removeListener(_formatCurrency);
+    super.dispose();
+  }
+
+  void _formatCurrency() {
+    String text = capitalController.text.replaceAll(',', '');
+    if (text.isEmpty) return;
+    
+    // Remove listener to prevent infinite loop
+    capitalController.removeListener(_formatCurrency);
+    
+    double? value = double.tryParse(text);
+    if (value != null) {
+      String formatted = _currencyFormat.format(value);
+      capitalController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    
+    capitalController.addListener(_formatCurrency);
   }
 
   Future<void> _fetchRates() async {
@@ -34,13 +64,15 @@ class _HomePageState extends State<HomePage> {
         const SnackBar(
           content: Text('Bank interest rates updated in real-time!'),
           duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
-  void _runOptimization() {
-    double capital = double.tryParse(capitalController.text) ?? 0.0;
+  void _runOptimization() async {
+    String cleanText = capitalController.text.replaceAll(',', '');
+    double capital = double.tryParse(cleanText) ?? 0.0;
     int maxOptions = int.tryParse(amountController.text) ?? 2;
 
     if (capital <= 0) {
@@ -54,6 +86,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    setState(() => _isCalculating = true);
+    
+    // Simulate complex calculation for UI feedback
+    await Future.delayed(const Duration(milliseconds: 1500));
+
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
@@ -61,12 +98,23 @@ class _HomePageState extends State<HomePage> {
       maxOptions: maxOptions,
     );
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ResultPage(optimizationResult: result),
-      ),
-    );
+    setState(() => _isCalculating = false);
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => ResultPage(optimizationResult: result),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    }
+  }
+
+  void _quickSet(double amount) {
+    capitalController.text = amount.toInt().toString();
   }
 
   @override
@@ -78,19 +126,40 @@ class _HomePageState extends State<HomePage> {
         children: [
           _buildHeader(),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInputCard(),
-                  const SizedBox(height: 24),
-                  _buildActionCard(),
-                ],
-              ),
-            ),
+            child: _isCalculating ? _buildShimmerLoading() : _buildContent(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInputCard(),
+          const SizedBox(height: 24),
+          _buildActionCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerLoading() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Column(
+          children: [
+            Container(height: 350, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
+            const SizedBox(height: 24),
+            Container(height: 60, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15))),
+          ],
+        ),
       ),
     );
   }
@@ -169,16 +238,26 @@ class _HomePageState extends State<HomePage> {
             child: TextField(
               controller: capitalController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
               decoration: const InputDecoration(
-                hintText: 'e.g. 100000',
+                hintText: 'e.g. 100,000',
                 border: InputBorder.none,
                 isDense: true,
                 prefixText: '₱ ',
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildQuickSetButton('10k', 10000),
+              const SizedBox(width: 8),
+              _buildQuickSetButton('50k', 50000),
+              const SizedBox(width: 8),
+              _buildQuickSetButton('100k', 100000),
+            ],
+          ),
+          const SizedBox(height: 24),
           _buildInputField(
             label: 'Time Horizon',
             icon: Icons.calendar_today_outlined,
@@ -192,21 +271,9 @@ class _HomePageState extends State<HomePage> {
               onChanged: (v) => setState(() => selectedHorizon = v!),
             ),
           ),
-          const SizedBox(height: 20),
-          _buildInputField(
-            label: 'Risk Tolerance',
-            icon: Icons.shield_outlined,
-            child: DropdownButton<String>(
-              value: selectedRisk,
-              isExpanded: true,
-              underline: const SizedBox(),
-              items: ['Conservative', 'Moderate', 'Aggressive']
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                  .toList(),
-              onChanged: (v) => setState(() => selectedRisk = v!),
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          _buildRiskField(),
+          const SizedBox(height: 24),
           _buildInputField(
             label: 'Max Diversification',
             icon: Icons.grid_view_outlined,
@@ -222,6 +289,60 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickSetButton(String label, double amount) {
+    return ActionChip(
+      label: Text(label),
+      backgroundColor: Colors.grey[100],
+      onPressed: () => _quickSet(amount),
+    );
+  }
+
+  Widget _buildRiskField() {
+    Color riskColor;
+    if (selectedRisk == 'Conservative') riskColor = Colors.green;
+    else if (selectedRisk == 'Moderate') riskColor = Colors.orange;
+    else riskColor = Colors.red;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.shield_outlined, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 8),
+            Text('Risk Tolerance', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
+            const Spacer(),
+            Container(
+              width: 10, height: 10,
+              decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: DropdownButton<String>(
+            value: selectedRisk,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: ['Conservative', 'Moderate', 'Aggressive']
+                .map((r) => DropdownMenuItem(
+                      value: r,
+                      child: Text(r, style: TextStyle(color: r == 'Conservative' ? Colors.green : (r == 'Moderate' ? Colors.orange : Colors.red), fontWeight: FontWeight.bold)),
+                    ))
+                .toList(),
+            onChanged: (v) => setState(() => selectedRisk = v!),
+          ),
+        ),
+      ],
     );
   }
 

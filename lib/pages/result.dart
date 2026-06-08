@@ -1,46 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'details.dart';
 import 'home.dart';
 import '../services/optimizer_service.dart';
 import '../models/investment_option.dart';
 
-class ResultPage extends StatelessWidget {
+class ResultPage extends StatefulWidget {
   final OptimizationResult? optimizationResult;
 
   const ResultPage({super.key, this.optimizationResult});
 
   @override
+  State<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends State<ResultPage> {
+  final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
+  bool _showSteps = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start animation delay for the "visualization" feel
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _showSteps = true);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final res = widget.optimizationResult;
     return Scaffold(
       backgroundColor: Colors.grey[100],
       bottomNavigationBar: _buildBottomNav(context),
       body: CustomScrollView(
         slivers: [
           _buildSliverHeader(),
-          if (optimizationResult == null || optimizationResult!.allocations.isEmpty)
+          if (res == null || res.allocations.isEmpty)
             const SliverFillRemaining(child: Center(child: Text('No valid combinations found.')))
           else ...[
             SliverPadding(
               padding: const EdgeInsets.all(20),
-              sliver: SliverToBoxAdapter(child: _buildChartCard()),
+              sliver: SliverToBoxAdapter(child: _buildChartCard(res)),
             ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverToBoxAdapter(child: _buildMainStatsCard()),
+              sliver: SliverToBoxAdapter(child: _buildMainStatsCard(res)),
             ),
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
               sliver: SliverToBoxAdapter(
-                child: Text('BACKTRACKING ANALYSIS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12, letterSpacing: 1.2)),
+                child: Row(
+                  children: [
+                    Icon(Icons.psychology, size: 16, color: Colors.indigo),
+                    SizedBox(width: 8),
+                    Text('PURE BACKTRACKING SEARCH', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 12, letterSpacing: 1.2)),
+                  ],
+                ),
               ),
             ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildStepItem(optimizationResult!.steps[index]),
-                childCount: optimizationResult!.steps.length,
-              ),
-            ),
+            if (_showSteps)
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final step = res.steps[index];
+                    return _buildStepItem(step, index);
+                  },
+                  childCount: res.steps.length,
+                ),
+              )
+            else
+              const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator())),
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ],
@@ -57,77 +88,36 @@ class ResultPage extends StatelessWidget {
           borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
         ),
         padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
-        child: const Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Optimization Complete', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('VIEWING BEST BACKTRACKING COMBO', style: TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 1)),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Text('Strategy Found', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 48),
+              child: Text('GLOBAL OPTIMUM ACHIEVED', style: TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 1)),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildChartCard() {
+  Widget _buildChartCard(OptimizationResult res) {
     return Container(
-      height: 250,
+      height: 350,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 20, offset: const Offset(0, 10))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
       ),
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 4,
-                centerSpaceRadius: 40,
-                sections: optimizationResult!.allocations.asMap().entries.map((e) {
-                  final colors = [Colors.deepPurple, Colors.orange, Colors.blue, Colors.green];
-                  return PieChartSectionData(
-                    color: colors[e.key % colors.length],
-                    value: e.value.amount,
-                    title: '${(e.value.amount / (optimizationResult!.allocations.fold(0.0, (s, i) => s + i.amount)) * 100).toStringAsFixed(0)}%',
-                    radius: 60,
-                    titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            flex: 1,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: optimizationResult!.allocations.asMap().entries.map((e) {
-                final colors = [Colors.deepPurple, Colors.orange, Colors.blue, Colors.green];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(width: 12, height: 12, decoration: BoxDecoration(color: colors[e.key % colors.length], shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(e.value.option.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainStatsCard() {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,87 +125,277 @@ class ResultPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Return', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
-              Text('₱${optimizationResult!.totalProfit.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.green)),
-            ],
-          ),
-          const Divider(height: 32),
-          ...optimizationResult!.allocations.map((alloc) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Earnings Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text('Stacked by Yield Efficiency', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.deepPurple[50], borderRadius: BorderRadius.circular(12)),
+                child: const Row(
                   children: [
-                    CircleAvatar(backgroundColor: Colors.deepPurple[50], radius: 18, child: Icon(alloc.option.type == InvestmentType.bank ? Icons.account_balance : Icons.show_chart, size: 18, color: Colors.deepPurple)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(alloc.option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('₱${alloc.amount.toStringAsFixed(0)} allocated', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    Text('₱${alloc.profit.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                    Icon(Icons.auto_graph, size: 14, color: Colors.deepPurple),
+                    SizedBox(width: 4),
+                    Text('ROI %', style: TextStyle(color: Colors.deepPurple, fontSize: 10, fontWeight: FontWeight.bold)),
                   ],
                 ),
-              )),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Expanded(
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: res.allocations.map((e) => e.profit).reduce((a, b) => a > b ? a : b) * 1.3,
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => Colors.deepPurple.withOpacity(0.9),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final alloc = res.allocations[groupIndex];
+                      return BarTooltipItem(
+                        '${alloc.option.name}\n',
+                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        children: [
+                          TextSpan(
+                            text: 'Total: ₱${_currencyFormat.format(alloc.profit)}\n',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.normal),
+                          ),
+                          TextSpan(
+                            text: 'ROI: ${((alloc.profit / (alloc.amount > 0 ? alloc.amount : 1)) * 100 * 12).toStringAsFixed(1)}% p.a.',
+                            style: TextStyle(color: Colors.amber[300], fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() >= 0 && value.toInt() < res.allocations.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              res.allocations[value.toInt()].option.name.split(' ')[0],
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                            ),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                gridData: const FlGridData(show: false),
+                barGroups: res.allocations.asMap().entries.map((e) {
+                  final alloc = e.value;
+                  final hasBase = alloc.baseRateProfit > 0;
+                  
+                  return BarChartGroupData(
+                    x: e.key,
+                    barRods: [
+                      BarChartRodData(
+                        toY: alloc.profit,
+                        width: 28,
+                        borderRadius: BorderRadius.circular(6),
+                        rodStackItems: [
+                          BarChartRodStackItem(0, alloc.baseRateProfit, Colors.deepPurple[200]!),
+                          BarChartRodStackItem(alloc.baseRateProfit, alloc.profit, Colors.deepPurple),
+                        ],
+                      ),
+                    ],
+                    showingTooltipIndicators: [0],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
           const SizedBox(height: 12),
-          _buildDaaStatsMini(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildLegendItem('High-Yield Profit', Colors.deepPurple),
+              const SizedBox(width: 16),
+              _buildLegendItem('Base-Rate Profit', Colors.deepPurple[200]!),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildDaaStatsMini() {
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _buildMainStatsCard(OptimizationResult res) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Estimated Profit', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+              Text('₱${_currencyFormat.format(res.totalProfit)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26, color: Colors.green)),
+            ],
+          ),
+          const Divider(height: 32),
+          ...res.allocations.map((alloc) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10)),
+                      child: Icon(alloc.option.type == InvestmentType.bank ? Icons.account_balance : Icons.insights, size: 20, color: Colors.deepPurple),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: Colors.deepPurple, borderRadius: BorderRadius.circular(4)),
+                              child: Text('#${alloc.rank}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(alloc.option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                '${(alloc.option.annualReturnRate * 100).toStringAsFixed(1)}%',
+                                style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text('₱${_currencyFormat.format(alloc.amount)}', style: TextStyle(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.bold)),
+                            if (alloc.baseRateAmount > 0) ...[
+                              const SizedBox(width: 4),
+                              Text('(₱${_currencyFormat.format(alloc.baseRateAmount)} at ${ (alloc.option.baseReturnRate * 100).toStringAsFixed(1)}%)', style: TextStyle(color: Colors.orange[700], fontSize: 9)),
+                            ],
+                            const SizedBox(width: 8),
+                            Icon(Icons.shield, size: 10, color: Colors.grey[400]),
+                            Text(' ${alloc.option.safetyRating}/10', style: TextStyle(color: Colors.grey[600], fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                    Text('+₱${_currencyFormat.format(alloc.profit)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13)),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 12),
+          _buildDaaStatsMini(res),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDaaStatsMini(OptimizationResult res) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
-          const Icon(Icons.psychology, color: Colors.blue, size: 20),
+          const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
           const SizedBox(width: 12),
-          Text('Search Space: ', style: TextStyle(color: Colors.blue[800], fontSize: 12)),
-          Text('${optimizationResult!.statesExplored} states', style: TextStyle(color: Colors.blue[900], fontWeight: FontWeight.bold, fontSize: 12)),
+          const Text('Search Complexity: ', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+          Text('${res.statesExplored} iterations', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _buildStepItem(TraceStep step) {
+  Widget _buildStepItem(TraceStep step, int index) {
     IconData icon;
     Color color;
     switch (step.type) {
-      case StepType.bestFound: icon = Icons.star; color = Colors.orange; break;
-      case StepType.evaluated: icon = Icons.check_circle; color = Colors.green; break;
-      case StepType.pruned: icon = Icons.remove_circle_outline; color = Colors.grey; break;
+      case StepType.bestFound: icon = Icons.auto_awesome; color = Colors.orange; break;
+      case StepType.evaluated: icon = Icons.search; color = Colors.blue; break;
+      case StepType.pruned: icon = Icons.block; color = Colors.grey; break;
+      case StepType.backtrackInfo: icon = Icons.account_tree_outlined; color = Colors.teal; break;
     }
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(icon, color: color, size: 20),
-        title: Text(step.description, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-        subtitle: Text(step.title, style: const TextStyle(fontSize: 11)),
-        trailing: step.profit != null ? Text('₱${step.profit!.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)) : null,
+    
+    return TweenAnimationBuilder(
+      duration: Duration(milliseconds: 300 + (index * 50).clamp(0, 1000)),
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, double value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          dense: true,
+          leading: Icon(icon, color: color, size: 18),
+          title: Text(step.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          subtitle: Text(step.title, style: const TextStyle(fontSize: 10)),
+          trailing: step.profit != null ? Text('+₱${step.profit!.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.green)) : null,
+        ),
       ),
     );
   }
 
   Widget _buildBottomNav(BuildContext context) {
-    return BottomNavigationBar(
-      backgroundColor: Colors.white,
-      selectedItemColor: Colors.deepPurple,
-      unselectedItemColor: Colors.grey,
-      currentIndex: 0,
-      onTap: (index) {
-        if (index == 1) Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage()));
-        if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage()));
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
-      ],
+    return Container(
+      decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+      child: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey,
+        currentIndex: 0,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index == 1) Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const HomePage()), (route) => false);
+          if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage()));
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
+        ],
+      ),
     );
   }
 }
