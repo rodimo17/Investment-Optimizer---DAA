@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'home.dart';
 import '../services/etf_price_service.dart';
 
@@ -9,7 +8,6 @@ class DetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final etfService = EtfPriceService();
-    final etfPrices = etfService.getMonthlyPrices();
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -17,16 +15,44 @@ class DetailsPage extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           _buildSliverHeader(context),
-          SliverPadding(
-            padding: const EdgeInsets.all(20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildCombinedTracker(etfPrices),
-                const SizedBox(height: 24),
-                _buildInterestRatesCard(),
-                const SizedBox(height: 40),
-              ]),
-            ),
+          FutureBuilder<List<EtfPriceData>>(
+            future: etfService.getMonthlyPrices(),
+            builder: (context, snapshot) {
+              final prices = snapshot.data ?? const <EtfPriceData>[];
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Estimated free-tier API calls left: ${etfService.callsLeft}/${etfService.dailyQuota}',
+                        style: const TextStyle(color: Colors.deepPurple, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    _buildCombinedTracker(prices),
+                    const SizedBox(height: 24),
+                    _buildInterestRatesCard(),
+                    const SizedBox(height: 40),
+                  ]),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -146,39 +172,13 @@ class DetailsPage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 80,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: price.history.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
-                    isCurved: true,
-                    color: isPositive ? Colors.green : Colors.red,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          (isPositive ? Colors.green : Colors.red).withOpacity(0.2),
-                          (isPositive ? Colors.green : Colors.red).withOpacity(0.0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          const SizedBox(height: 12),
+          Text(
+            'ROI is calculated from the monthly price change: '
+            '((currentPrice - previousPrice) / previousPrice) × 100.',
+            style: TextStyle(color: Colors.grey[600], fontSize: 11),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
         ],
       ),

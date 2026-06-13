@@ -87,9 +87,13 @@ class OptimizerService {
     _statesCount = 0;
 
     double timeFactor = 1.0;
-    if (horizon == '1 month') timeFactor = 1 / 12;
-    else if (horizon == '3 months') timeFactor = 3 / 12;
-    else if (horizon == '6 months') timeFactor = 6 / 12;
+    if (horizon == '1 month') {
+      timeFactor = 1 / 12;
+    } else if (horizon == '3 months') {
+      timeFactor = 3 / 12;
+    } else if (horizon == '6 months') {
+      timeFactor = 6 / 12;
+    }
 
     List<InvestmentOption> available = allOptions.where((opt) {
       if (riskPreference == 'Conservative') return opt.riskLevel == 'Conservative';
