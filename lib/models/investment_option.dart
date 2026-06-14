@@ -1,4 +1,4 @@
-enum InvestmentType { bank, etf }
+enum InvestmentType { bank, etf, govt, reit }
 
 class InvestmentOption {
   final String name;
@@ -22,6 +22,15 @@ class InvestmentOption {
     required this.safetyRating,
     required this.liquidityScore,
   });
+
+  String get typeLabel {
+    switch (type) {
+      case InvestmentType.bank: return 'Digital Bank';
+      case InvestmentType.etf: return 'Stock ETF';
+      case InvestmentType.govt: return 'Govt Bond';
+      case InvestmentType.reit: return 'REIT (Property)';
+    }
+  }
 
   /// Calculates an overall ranking score based on Return, Safety, and Liquidity
   double get overallScore {

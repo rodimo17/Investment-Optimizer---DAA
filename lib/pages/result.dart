@@ -112,61 +112,87 @@ class _ResultPageState extends State<ResultPage> {
 
   Widget _buildChartCard(OptimizationResult res) {
     return Container(
-      height: 350,
+      height: 380,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+          )
+        ],
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Earnings Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  Text('Stacked by Yield Efficiency', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  Text(
+                    'Profit Analysis',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Colors.grey[800],
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: Colors.deepPurple, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Optimized Yield',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.deepPurple[50], borderRadius: BorderRadius.circular(12)),
-                child: const Row(
-                  children: [
-                    Icon(Icons.auto_graph, size: 14, color: Colors.deepPurple),
-                    SizedBox(width: 4),
-                    Text('ROI %', style: TextStyle(color: Colors.deepPurple, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.grey[100]!),
                 ),
+                child: const Icon(Icons.insights_rounded, size: 20, color: Colors.deepPurple),
               ),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Expanded(
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: res.allocations.map((e) => e.profit).reduce((a, b) => a > b ? a : b) * 1.3,
+                maxY: res.allocations.map((e) => e.profit).reduce((a, b) => a > b ? a : b) * 1.4,
                 barTouchData: BarTouchData(
+                  enabled: true,
                   touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => Colors.deepPurple.withOpacity(0.9),
+                    getTooltipColor: (_) => Colors.white,
+                    tooltipRoundedRadius: 12,
+                    tooltipPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    tooltipMargin: 8,
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final alloc = res.allocations[groupIndex];
                       return BarTooltipItem(
-                        '${alloc.option.name}\n',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        '₱${_currencyFormat.format(alloc.profit)}\n',
+                        TextStyle(color: Colors.grey[900], fontWeight: FontWeight.bold, fontSize: 14),
                         children: [
                           TextSpan(
-                            text: 'Total: ₱${_currencyFormat.format(alloc.profit)}\n',
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.normal),
-                          ),
-                          TextSpan(
-                            text: 'ROI: ${((alloc.profit / (alloc.amount > 0 ? alloc.amount : 1)) * 100 * 12).toStringAsFixed(1)}% p.a.',
-                            style: TextStyle(color: Colors.amber[300], fontSize: 11, fontWeight: FontWeight.bold),
+                            text: '${((alloc.profit / (alloc.amount > 0 ? alloc.amount : 1)) * 100 * 12).toStringAsFixed(2)}% ROI',
+                            style: const TextStyle(color: Colors.deepPurple, fontSize: 11, fontWeight: FontWeight.w600),
                           ),
                         ],
                       );
@@ -178,18 +204,23 @@ class _ResultPageState extends State<ResultPage> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 30,
+                      reservedSize: 40,
                       getTitlesWidget: (value, meta) {
                         if (value.toInt() >= 0 && value.toInt() < res.allocations.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
+                          return SideTitleWidget(
+                            axisSide: meta.axisSide,
+                            space: 12,
                             child: Text(
                               res.allocations[value.toInt()].option.name.split(' ')[0],
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           );
                         }
-                        return const Text('');
+                        return const SizedBox();
                       },
                     ),
                   ),
@@ -198,37 +229,50 @@ class _ResultPageState extends State<ResultPage> {
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
-                gridData: const FlGridData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: res.allocations.map((e) => e.profit).reduce((a, b) => a > b ? a : b) / 3,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.grey[100]!,
+                    strokeWidth: 1,
+                    dashArray: [5, 5],
+                  ),
+                ),
                 barGroups: res.allocations.asMap().entries.map((e) {
                   final alloc = e.value;
-                  final hasBase = alloc.baseRateProfit > 0;
-                  
                   return BarChartGroupData(
                     x: e.key,
                     barRods: [
                       BarChartRodData(
                         toY: alloc.profit,
-                        width: 28,
-                        borderRadius: BorderRadius.circular(6),
+                        width: 32,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                         rodStackItems: [
-                          BarChartRodStackItem(0, alloc.baseRateProfit, Colors.deepPurple[200]!),
+                          BarChartRodStackItem(0, alloc.baseRateProfit, Colors.deepPurple.withOpacity(0.2)),
                           BarChartRodStackItem(alloc.baseRateProfit, alloc.profit, Colors.deepPurple),
                         ],
+                        gradient: LinearGradient(
+                          colors: [Colors.deepPurple, Colors.deepPurple.withOpacity(0.8)],
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                        ),
                       ),
                     ],
-                    showingTooltipIndicators: [0],
                   );
                 }).toList(),
               ),
+              duration: const Duration(milliseconds: 1000),
+              curve: Curves.easeOutQuart,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLegendItem('High-Yield Profit', Colors.deepPurple),
-              const SizedBox(width: 16),
-              _buildLegendItem('Base-Rate Profit', Colors.deepPurple[200]!),
+              _buildLegendItem('Elite Yield', Colors.deepPurple),
+              const SizedBox(width: 24),
+              _buildLegendItem('Base Rate', Colors.deepPurple.withOpacity(0.2)),
             ],
           ),
         ],
@@ -239,9 +283,23 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildLegendItem(String label, Color color) {
     return Row(
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500)),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -266,56 +324,82 @@ class _ResultPageState extends State<ResultPage> {
           ),
           const Divider(height: 32),
           ...res.allocations.map((alloc) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10)),
-                      child: Icon(alloc.option.type == InvestmentType.bank ? Icons.account_balance : Icons.insights, size: 20, color: Colors.deepPurple),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.grey[100]!),
+                      ),
+                      child: Icon(
+                        alloc.option.type == InvestmentType.bank ? Icons.account_balance_rounded : Icons.insights_rounded,
+                        size: 24,
+                        color: Colors.deepPurple,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.deepPurple, borderRadius: BorderRadius.circular(4)),
-                              child: Text('#${alloc.rank}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(alloc.option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(4)),
-                              child: Text(
-                                '${(alloc.option.annualReturnRate * 100).toStringAsFixed(1)}%',
-                                style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                alloc.option.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.5),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text('₱${_currencyFormat.format(alloc.amount)}', style: TextStyle(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.bold)),
-                            if (alloc.baseRateAmount > 0) ...[
-                              const SizedBox(width: 4),
-                              Text('(₱${_currencyFormat.format(alloc.baseRateAmount)} at ${ (alloc.option.baseReturnRate * 100).toStringAsFixed(1)}%)', style: TextStyle(color: Colors.orange[700], fontSize: 9)),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.deepPurple.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  alloc.option.typeLabel,
+                                  style: const TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
                             ],
-                            const SizedBox(width: 8),
-                            Icon(Icons.shield, size: 10, color: Colors.grey[400]),
-                            Text(' ${alloc.option.safetyRating}/10', style: TextStyle(color: Colors.grey[600], fontSize: 10)),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Text(
+                                '₱${_currencyFormat.format(alloc.amount)}',
+                                style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (alloc.baseRateAmount > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(+₱${_currencyFormat.format(alloc.baseRateAmount)} Base)',
+                                  style: TextStyle(color: Colors.orange[800], fontSize: 10, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                              const Spacer(),
+                              Icon(Icons.shield_moon_outlined, size: 12, color: Colors.grey[400]),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${alloc.option.safetyRating}/10',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                    Text('+₱${_currencyFormat.format(alloc.profit)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13)),
                   ],
                 ),
               )),
