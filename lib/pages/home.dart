@@ -1,3 +1,5 @@
+// High-Fidelity Next-Gen UI Version
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -142,7 +144,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       children: [
         Positioned(
           top: -30, right: -30,
-          child: Container(width: 300, height: 300, decoration: BoxDecoration(color: const Color(0xFF7B1FA2).withOpacity(0.03), shape: BoxShape.circle)),
+          child: Container(width: 300, height: 300, decoration: BoxDecoration(color: const Color(0xFF7B1FA2).withOpacity(0.04), shape: BoxShape.circle)),
+        ),
+        Positioned(
+          top: 200, left: -50,
+          child: Container(width: 150, height: 150, decoration: BoxDecoration(color: Colors.blue.withOpacity(0.03), shape: BoxShape.circle)),
         ),
         Positioned(
           bottom: 100, left: -100,
@@ -155,7 +161,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildLiveTicker() {
     return Container(
       width: double.infinity,
-      color: Colors.deepPurple[900],
+      color: const Color(0xFF1A237E),
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: const SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -211,7 +217,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('INVESTMENT TARGET', 
+                      const Text('INVESTMENT TARGET', 
                         style: TextStyle(
                           color: Colors.white60, 
                           fontSize: 10, 
@@ -267,16 +273,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4A148C), Color(0xFF6A1B9A), Color(0xFF7B1FA2)]),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(0), bottomRight: Radius.circular(0)),
       ),
       padding: const EdgeInsets.only(top: 70, bottom: 25, left: 24, right: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Smart Investor', 
+              Text('Smart Investor', 
                 style: TextStyle(
                   color: Colors.white, 
                   fontSize: 32, 
@@ -284,10 +289,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   letterSpacing: -1.5,
                   height: 1.0,
                 )),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text('PRECISION OPTIMIZATION', 
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.6), 
+                  color: Colors.white60, 
                   fontSize: 10, 
                   letterSpacing: 2.5, 
                   fontWeight: FontWeight.w800,
@@ -317,85 +322,87 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildInputCard() {
     return _EntranceAnimation(
       delay: 200,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(32),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 40, offset: const Offset(0, 20))],
-          border: Border.all(color: Colors.grey[100]!, width: 1),
-        ),
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)),
-              const SizedBox(width: 14),
-              const Text('Strategy Engine', 
-                style: TextStyle(
-                  fontWeight: FontWeight.w900, 
-                  fontSize: 18, 
-                  color: Color(0xFF1A237E), 
-                  letterSpacing: -0.5,
-                )),
-            ]),
-            const SizedBox(height: 32),
-            _buildInputField(
-              label: 'Available Capital',
-              icon: Icons.account_balance_wallet_rounded,
-              child: TextField(
-                controller: capitalController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [CurrencyInputFormatter()],
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold, 
-                  fontSize: 24, 
-                  color: Colors.deepPurple, 
-                  letterSpacing: -1.0,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 40, offset: const Offset(0, 20))],
+            ),
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)),
+                  const SizedBox(width: 14),
+                  const Text('Strategy Engine', 
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900, 
+                      fontSize: 18, 
+                      color: Color(0xFF1A237E), 
+                      letterSpacing: -0.5,
+                    )),
+                ]),
+                const SizedBox(height: 32),
+                _buildInputField(
+                  label: 'Available Capital',
+                  icon: Icons.account_balance_wallet_rounded,
+                  child: TextField(
+                    controller: capitalController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [CurrencyInputFormatter()],
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple, letterSpacing: -1.0),
+                    decoration: const InputDecoration(
+                      hintText: '0', 
+                      border: InputBorder.none, 
+                      isDense: true, 
+                      prefixText: '₱ ', 
+                      prefixStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple),
+                    ),
+                  ),
                 ),
-                decoration: const InputDecoration(
-                  hintText: '0', 
-                  border: InputBorder.none, 
-                  isDense: true, 
-                  prefixText: '₱ ', 
-                  prefixStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple),
+                const SizedBox(height: 20),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal, physics: const BouncingScrollPhysics(),
+                  child: Row(children: ['10k', '50k', '100k', '500k', '1M'].map((label) => Padding(padding: const EdgeInsets.only(right: 8), child: _buildQuickSetButton(label, double.parse(label.replaceAll('k', '000').replaceAll('M', '1000000'))))).toList()),
                 ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal, physics: const BouncingScrollPhysics(),
-              child: Row(children: ['10k', '50k', '100k', '500k', '1M'].map((label) => Padding(padding: const EdgeInsets.only(right: 8), child: _buildQuickSetButton(label, double.parse(label.replaceAll('k', '000').replaceAll('M', '1000000'))))).toList()),
-            ),
-            const SizedBox(height: 32),
-            _buildInputField(
-              label: 'Investment Duration',
-              icon: Icons.timer_rounded,
-              child: DropdownButton<String>(
-                value: selectedHorizon, isExpanded: true, underline: const SizedBox(),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple),
-                items: ['1 month', '3 months', '6 months', '1 year'].map((h) => DropdownMenuItem(value: h, child: Text(h, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))).toList(),
-                onChanged: (v) => setState(() => selectedHorizon = v!),
-              ),
-            ),
-            const SizedBox(height: 28),
-            _buildRiskField(),
-            const SizedBox(height: 28),
-            _buildInputField(
-              label: 'Max Asset Limit',
-              icon: Icons.hub_rounded,
-              child: TextField(
-                controller: amountController, keyboardType: TextInputType.number,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
-                decoration: const InputDecoration(
-                  hintText: 'Max assets', 
-                  border: InputBorder.none, 
-                  isDense: true, 
-                  suffixText: 'ASSETS', 
-                  suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1.5),
+                const SizedBox(height: 32),
+                _buildInputField(
+                  label: 'Investment Duration',
+                  icon: Icons.timer_rounded,
+                  child: DropdownButton<String>(
+                    value: selectedHorizon, isExpanded: true, underline: const SizedBox(),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple),
+                    items: ['1 month', '3 months', '6 months', '1 year'].map((h) => DropdownMenuItem(value: h, child: Text(h, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))).toList(),
+                    onChanged: (v) => setState(() => selectedHorizon = v!),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 28),
+                _buildRiskField(),
+                const SizedBox(height: 28),
+                _buildInputField(
+                  label: 'Max Asset Limit',
+                  icon: Icons.hub_rounded,
+                  child: TextField(
+                    controller: amountController, keyboardType: TextInputType.number,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
+                    decoration: const InputDecoration(
+                      hintText: 'Max assets', 
+                      border: InputBorder.none, 
+                      isDense: true, 
+                      suffixText: 'ASSETS', 
+                      suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1.5),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -434,7 +441,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ]),
         const SizedBox(height: 12),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey[200]!)),
+          padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1))),
           child: DropdownButton<String>(
             value: selectedRisk, isExpanded: true, underline: const SizedBox(),
             icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple),
@@ -461,7 +468,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ))
       ]),
       const SizedBox(height: 12),
-      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey[200]!)), child: child),
+      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1))), child: child),
     ]);
   }
 
