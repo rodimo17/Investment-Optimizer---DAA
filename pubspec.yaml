@@ -85,10 +85,10 @@ flutter:
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   fonts:
-    - family: Roboto
+    - family: RobotoThin
       fonts:
         - asset: fonts/Roboto-ExtraLight.ttf
-          weight: 500
+          weight: 100
   
     - family:  MyFlutterApp
       fonts:

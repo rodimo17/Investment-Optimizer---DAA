@@ -54,7 +54,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       setState(() => _isUpdatingRates = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Live market interest rates updated!', style: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Roboto')),
+          content: const Text('Live market interest rates updated!', 
+            style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.2)),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -210,9 +211,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('INVESTMENT TARGET', style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, fontFamily: 'Roboto')),
+                      Text('INVESTMENT TARGET', 
+                        style: TextStyle(
+                          color: Colors.white60, 
+                          fontSize: 10, 
+                          fontWeight: FontWeight.w900, 
+                          letterSpacing: 2.0,
+                        )),
                       const SizedBox(height: 12),
-                      Text('₱${_currencyFormat.format(_currentCapital)}', style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: -1)),
+                      Text('₱${_currencyFormat.format(_currentCapital)}', 
+                        style: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 32, 
+                          fontWeight: FontWeight.bold, 
+                          letterSpacing: -1.0,
+                          height: 1.1,
+                        )),
                     ],
                   ),
                 ),
@@ -253,18 +267,31 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4A148C), Color(0xFF6A1B9A), Color(0xFF7B1FA2)]),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(0), bottomRight: Radius.circular(0)), // Unified with ticker
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(0), bottomRight: Radius.circular(0)),
       ),
       padding: const EdgeInsets.only(top: 70, bottom: 25, left: 24, right: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Smart Investor', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5)),
-              SizedBox(height: 4),
-              Text('PRECISION OPTIMIZATION', style: TextStyle(color: Colors.white60, fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w800, fontFamily: 'Roboto')),
+              const Text('Smart Investor', 
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontSize: 32, 
+                  fontWeight: FontWeight.w900, 
+                  letterSpacing: -1.5,
+                  height: 1.0,
+                )),
+              const SizedBox(height: 6),
+              Text('PRECISION OPTIMIZATION', 
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6), 
+                  fontSize: 10, 
+                  letterSpacing: 2.5, 
+                  fontWeight: FontWeight.w800,
+                )),
             ],
           ),
           _buildRefreshButton(),
@@ -303,7 +330,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             Row(children: [
               Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)),
               const SizedBox(width: 14),
-              const Text('Strategy Engine', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1A237E), letterSpacing: -0.5)),
+              const Text('Strategy Engine', 
+                style: TextStyle(
+                  fontWeight: FontWeight.w900, 
+                  fontSize: 18, 
+                  color: Color(0xFF1A237E), 
+                  letterSpacing: -0.5,
+                )),
             ]),
             const SizedBox(height: 32),
             _buildInputField(
@@ -313,8 +346,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 controller: capitalController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [CurrencyInputFormatter()],
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple, letterSpacing: -1),
-                decoration: const InputDecoration(hintText: '0', border: InputBorder.none, isDense: true, prefixText: '₱ ', prefixStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple)),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 24, 
+                  color: Colors.deepPurple, 
+                  letterSpacing: -1.0,
+                ),
+                decoration: const InputDecoration(
+                  hintText: '0', 
+                  border: InputBorder.none, 
+                  isDense: true, 
+                  prefixText: '₱ ', 
+                  prefixStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple),
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -341,8 +385,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               icon: Icons.hub_rounded,
               child: TextField(
                 controller: amountController, keyboardType: TextInputType.number,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                decoration: const InputDecoration(hintText: 'Max assets', border: InputBorder.none, isDense: true, suffixText: 'ASSETS', suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1)),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
+                decoration: const InputDecoration(
+                  hintText: 'Max assets', 
+                  border: InputBorder.none, 
+                  isDense: true, 
+                  suffixText: 'ASSETS', 
+                  suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1.5),
+                ),
               ),
             ),
           ],
@@ -372,7 +422,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       children: [
         Row(children: [
           Icon(Icons.shield_rounded, size: 16, color: Colors.grey[400]), const SizedBox(width: 8),
-          const Text('RISK TOLERANCE', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, fontFamily: 'Roboto')),
+          const Text('RISK TOLERANCE', 
+            style: TextStyle(
+              color: Colors.grey, 
+              fontSize: 10, 
+              fontWeight: FontWeight.w900, 
+              letterSpacing: 1.5,
+            )),
           const Spacer(),
           AnimatedContainer(duration: const Duration(milliseconds: 400), width: 12, height: 12, decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle, boxShadow: [BoxShadow(color: riskColor.withOpacity(0.3), blurRadius: 8, spreadRadius: 2)])),
         ]),
@@ -386,14 +442,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             onChanged: (v) => setState(() => selectedRisk = v!),
           ),
         ),
-        Padding(padding: const EdgeInsets.only(left: 4, top: 8), child: Text(riskDesc, style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic))),
+        Padding(padding: const EdgeInsets.only(left: 4, top: 8), child: Text(riskDesc, style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic, letterSpacing: 0.2))),
       ],
     );
   }
 
   Widget _buildInputField({required String label, required IconData icon, required Widget child}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(icon, size: 16, color: Colors.grey[400]), const SizedBox(width: 8), Text(label.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, fontFamily: 'Roboto'))]),
+      Row(children: [
+        Icon(icon, size: 16, color: Colors.grey[400]), 
+        const SizedBox(width: 8), 
+        Text(label.toUpperCase(), 
+          style: const TextStyle(
+            color: Colors.grey, 
+            fontSize: 10, 
+            fontWeight: FontWeight.w900, 
+            letterSpacing: 1.5,
+          ))
+      ]),
       const SizedBox(height: 12),
       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey[200]!)), child: child),
     ]);
@@ -429,7 +495,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       margin: const EdgeInsets.only(left: 20, right: 20, bottom: 40),
       height: 85,
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117), // Darker professional nav
+        color: const Color(0xFF0D1117), 
         borderRadius: BorderRadius.circular(40),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 20))],
       ),
@@ -463,7 +529,13 @@ class _TickerItem extends StatelessWidget {
       padding: const EdgeInsets.only(right: 32),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          Text(label, 
+            style: const TextStyle(
+              color: Colors.white54, 
+              fontSize: 10, 
+              fontWeight: FontWeight.w900, 
+              letterSpacing: 1.2,
+            )),
           const SizedBox(width: 8),
           Text(value, style: TextStyle(color: up ? Colors.greenAccent : Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
           Icon(up ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: up ? Colors.greenAccent : Colors.redAccent, size: 16),
