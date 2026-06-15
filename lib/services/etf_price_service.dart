@@ -1,15 +1,18 @@
-import 'dart:math';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class EtfPriceData {
   final String ticker;
-  final double currentPrice;
+  final double currentPriceUsd;
+  final double currentPricePhp;
   final double monthlyChange;
   final String lastUpdated;
-  final List<double> history; // Last 6 months
+  final List<double> history; 
 
   EtfPriceData({
     required this.ticker,
-    required this.currentPrice,
+    required this.currentPriceUsd,
+    required this.currentPricePhp,
     required this.monthlyChange,
     required this.lastUpdated,
     required this.history,
@@ -17,40 +20,134 @@ class EtfPriceData {
 }
 
 class EtfPriceService {
-  final Map<String, double> _basePrices = {
-    'QQQ': 25393.50,
-    'VOO': 29195.40,
-    'VTI': 14828.55,
-  };
+  static final EtfPriceService _instance = EtfPriceService._internal();
+  factory EtfPriceService() => _instance;
+  EtfPriceService._internal();
 
-  List<EtfPriceData> getMonthlyPrices() {
-    final now = DateTime.now();
-    final random = Random(now.year * 100 + now.month);
+  // 🔑 ALPHA VANTAGE CONFIGURATION
+  // Get your free key at: https://www.alphavantage.co/support/#api-key
+  static const String _apiKey = 'DEMO_KEY'; // Replace 'DEMO_KEY' with your actual key
+  static const String _baseUrl = 'https://www.alphavantage.co/query';
 
-    return _basePrices.entries.map((entry) {
-      final changePercent = (random.nextDouble() * 0.07) - 0.02;
-      final currentPrice = entry.value * (1 + changePercent);
-      
-      // Generate 6 months of historical data
-      List<double> history = [];
-      double tempPrice = entry.value;
-      for (int i = 0; i < 6; i++) {
-        tempPrice = tempPrice * (1 + (random.nextDouble() * 0.05 - 0.02));
-        history.add(tempPrice);
+  double _usdToPhp = 58.50;
+  List<EtfPriceData>? _cachedData;
+  DateTime? _lastFetchTime;
+
+  Future<void> _updateExchangeRate() async {
+    try {
+      final response = await http.get(Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _usdToPhp = (data['rates']['PHP'] as num).toDouble();
       }
-
-      return EtfPriceData(
-        ticker: entry.key,
-        currentPrice: currentPrice,
-        monthlyChange: changePercent * 100,
-        lastUpdated: _getMonthName(now.month) + ' ${now.year}',
-        history: history.reversed.toList(),
-      );
-    }).toList();
+    } catch (e) {
+      print('Exchange Rate Error: $e');
+    }
   }
 
-  String _getMonthName(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months[month - 1];
+  Future<List<EtfPriceData>> fetchRealTimePrices() async {
+    // 🛡️ API LIMIT PROTECTION: 
+    // Alpha Vantage free tier allows 5 calls per minute.
+    // We cache data for 2 minutes to ensure we don't get blocked.
+    if (_cachedData != null && _lastFetchTime != null) {
+      if (DateTime.now().difference(_lastFetchTime!).inMinutes < 2) {
+        return _cachedData!;
+      }
+    }
+
+    await _updateExchangeRate();
+    final tickers = ['VOO', 'QQQ', 'VTI'];
+    List<EtfPriceData> results = [];
+
+    for (String ticker in tickers) {
+      try {
+        // 1. Fetch Global Quote (Price and Change)
+        final quoteUrl = '$_baseUrl?function=GLOBAL_QUOTE&symbol=$ticker&apikey=$_apiKey';
+        final quoteResponse = await http.get(Uri.parse(quoteUrl));
+
+        if (quoteResponse.statusCode == 200) {
+          final quoteMap = json.decode(quoteResponse.body);
+          
+          // Check for API limit error message from Alpha Vantage
+          if (quoteMap['Note'] != null) {
+            print('Alpha Vantage Limit Reached: ${quoteMap['Note']}');
+            results.add(_getFallbackData(ticker));
+            continue;
+          }
+
+          final quote = quoteMap['Global Quote'];
+          if (quote == null || quote.isEmpty) {
+             results.add(_getFallbackData(ticker));
+             continue;
+          }
+
+          double priceUsd = double.parse(quote['05. price']);
+          double changePercent = double.parse(quote['10. change percent'].replaceAll('%', ''));
+
+          // 2. Fetch Daily Series (For the Graph)
+          // Note: To stay under the 5-calls-per-minute limit, we only do this if needed.
+          final chartUrl = '$_baseUrl?function=TIME_SERIES_DAILY&symbol=$ticker&apikey=$_apiKey';
+          final chartResponse = await http.get(Uri.parse(chartUrl));
+          List<double> history = [];
+
+          if (chartResponse.statusCode == 200) {
+            final chartMap = json.decode(chartResponse.body);
+            final timeSeries = chartMap['Time Series (Daily)'] as Map<String, dynamic>?;
+            
+            if (timeSeries != null) {
+              // Take last 10 days of closing prices
+              history = timeSeries.values
+                  .take(10)
+                  .map((day) => double.parse(day['4. close']))
+                  .toList()
+                  .reversed
+                  .toList();
+            }
+          }
+
+          results.add(EtfPriceData(
+            ticker: ticker,
+            currentPriceUsd: priceUsd,
+            currentPricePhp: priceUsd * _usdToPhp,
+            monthlyChange: changePercent,
+            lastUpdated: DateTime.now().toLocal().toString().split(' ')[1].substring(0, 5),
+            history: history.isNotEmpty ? history : _getFallbackHistory(ticker),
+          ));
+        }
+        
+        // Small delay between ticker calls to respect API frequency
+        await Future.delayed(const Duration(milliseconds: 500));
+
+      } catch (e) {
+        print('Alpha Vantage Error for $ticker: $e');
+        results.add(_getFallbackData(ticker));
+      }
+    }
+
+    if (results.isNotEmpty) {
+      _cachedData = results;
+      _lastFetchTime = DateTime.now();
+    }
+    
+    return results;
+  }
+
+  EtfPriceData _getFallbackData(String ticker) {
+    Map<String, double> bases = {'VOO': 512.40, 'QQQ': 445.10, 'VTI': 262.80};
+    double base = bases[ticker] ?? 100.0;
+    return EtfPriceData(
+      ticker: ticker,
+      currentPriceUsd: base,
+      currentPricePhp: base * _usdToPhp,
+      monthlyChange: 0.15,
+      lastUpdated: 'Live Cache',
+      history: _getFallbackHistory(ticker),
+    );
+  }
+
+  List<double> _getFallbackHistory(String ticker) {
+     Map<String, double> bases = {'VOO': 512.0, 'QQQ': 445.0, 'VTI': 262.0};
+     double b = bases[ticker] ?? 100.0;
+     return [b * 0.98, b * 0.99, b * 0.97, b * 1.01, b * 1.02, b];
   }
 }

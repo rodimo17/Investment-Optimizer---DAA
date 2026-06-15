@@ -1,16 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:intl/intl.dart';
 import 'home.dart';
 import '../services/etf_price_service.dart';
 
-class DetailsPage extends StatelessWidget {
+class DetailsPage extends StatefulWidget {
   const DetailsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final etfService = EtfPriceService();
-    final etfPrices = etfService.getMonthlyPrices();
+  State<DetailsPage> createState() => _DetailsPageState();
+}
 
+class _DetailsPageState extends State<DetailsPage> {
+  final EtfPriceService _etfService = EtfPriceService();
+  final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
+  late Future<List<EtfPriceData>> _priceFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _priceFuture = _etfService.fetchRealTimePrices();
+  }
+
+  void _refreshData() {
+    setState(() {
+      _priceFuture = _etfService.fetchRealTimePrices();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       bottomNavigationBar: _buildBottomNav(context),
@@ -21,7 +41,19 @@ class DetailsPage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _buildCombinedTracker(etfPrices),
+                FutureBuilder<List<EtfPriceData>>(
+                  future: _priceFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildShimmerTracker();
+                    } else if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text('No live data available.'));
+                    }
+                    return _buildCombinedTracker(snapshot.data!);
+                  },
+                ),
                 const SizedBox(height: 24),
                 _buildInterestRatesCard(),
                 const SizedBox(height: 40),
@@ -47,7 +79,7 @@ class DetailsPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('Market Insights', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-            Text('HISTORICAL TRENDS & LIVE PRICES', style: TextStyle(color: Colors.white70, fontSize: 8, letterSpacing: 0.5)),
+            Text('REAL-TIME GLOBAL DATA', style: TextStyle(color: Colors.white70, fontSize: 8, letterSpacing: 0.5)),
           ],
         ),
         background: Container(
@@ -55,7 +87,7 @@ class DetailsPage extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.deepPurple, Colors.indigo],
+              colors: [Color(0xFF4A148C), Color(0xFF1A237E)],
             ),
           ),
           child: Stack(
@@ -72,6 +104,23 @@ class DetailsPage extends StatelessWidget {
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
         onPressed: () => Navigator.pop(context),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh, color: Colors.white),
+          onPressed: _refreshData,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShimmerTracker() {
+    return Shimmer.fromColors(
+      baseColor: Colors.white,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        height: 400,
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
       ),
     );
   }
@@ -94,7 +143,7 @@ class DetailsPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(20)),
-                child: Text('LIVE ₱', style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 10)),
+                child: Text('LIVE DATA', style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 10)),
               ),
             ],
           ),
@@ -124,21 +173,25 @@ class DetailsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(price.ticker, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text(price.lastUpdated, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                    Text('Updated: ${price.lastUpdated}', style: TextStyle(color: Colors.grey[500], fontSize: 10)),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₱${price.currentPrice.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('₱${_currencyFormat.format(price.currentPricePhp)}', 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A237E), letterSpacing: -0.5)),
+                  Text('\$${price.currentPriceUsd.toStringAsFixed(2)} USD', 
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(isPositive ? Icons.trending_up : Icons.trending_down, size: 12, color: isPositive ? Colors.green : Colors.red),
-                      const SizedBox(width: 4),
+                      Icon(isPositive ? Icons.arrow_drop_up : Icons.arrow_drop_down, 
+                        size: 20, color: isPositive ? Colors.greenAccent[700] : Colors.redAccent),
                       Text(
                         '${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%',
-                        style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: isPositive ? Colors.greenAccent[700] : Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w900),
                       ),
                     ],
                   ),
@@ -148,7 +201,7 @@ class DetailsPage extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 80,
+            height: 100,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),

@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import 'details.dart';
 import 'result.dart';
 import '../services/optimizer_service.dart';
+import '../services/etf_price_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,7 +26,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   late AnimationController _buttonScaleController;
   final OptimizerService _optimizerService = OptimizerService();
+  final EtfPriceService _etfService = EtfPriceService();
   final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
+  
+  List<EtfPriceData> _liveEtfs = [];
 
   double get _currentCapital => double.tryParse(capitalController.text.replaceAll(',', '')) ?? 0.0;
 
@@ -51,12 +55,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Future<void> _fetchRates() async {
     setState(() => _isUpdatingRates = true);
-    await _optimizerService.fetchLatestRates();
+    
+    // Fetch ETF/Bank rates in parallel
+    final results = await Future.wait([
+      _optimizerService.fetchLatestRates(),
+      _etfService.fetchRealTimePrices(),
+    ]);
+    
     if (mounted) {
-      setState(() => _isUpdatingRates = false);
+      setState(() {
+        _isUpdatingRates = false;
+        _liveEtfs = results[1] as List<EtfPriceData>;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Live market interest rates updated!', 
+          content: const Text('Live market data synced successfully!', 
             style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.2)),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
@@ -163,16 +176,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       width: double.infinity,
       color: const Color(0xFF1A237E),
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: const SingleChildScrollView(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            SizedBox(width: 24),
-            _TickerItem(label: 'MAYA', value: '10.0%', up: true),
-            _TickerItem(label: 'VOO', value: '12.5%', up: true),
-            _TickerItem(label: 'SEABANK', value: '4.25%', up: false),
-            _TickerItem(label: 'QQQ', value: '18.2%', up: true),
-            _TickerItem(label: 'VTI', value: '12.1%', up: true),
+            const SizedBox(width: 24),
+            if (_liveEtfs.isEmpty)
+              const Text('Connecting to live markets...', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold))
+            else
+              ..._liveEtfs.map((etf) => _TickerItem(
+                label: etf.ticker, 
+                value: '₱${_currencyFormat.format(etf.currentPricePhp)}', 
+                change: '${etf.monthlyChange >= 0 ? '+' : ''}${etf.monthlyChange.toStringAsFixed(2)}%',
+                up: etf.monthlyChange >= 0
+              )),
+            const _TickerItem(label: 'MAYA', value: '10.0% APY', up: true),
+            const _TickerItem(label: 'SEABANK', value: '4.25% APY', up: false),
           ],
         ),
       ),
@@ -527,8 +546,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 class _TickerItem extends StatelessWidget {
   final String label;
   final String value;
+  final String? change;
   final bool up;
-  const _TickerItem({required this.label, required this.value, required this.up});
+  const _TickerItem({required this.label, required this.value, this.change, required this.up});
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +564,10 @@ class _TickerItem extends StatelessWidget {
               letterSpacing: 1.2,
             )),
           const SizedBox(width: 8),
-          Text(value, style: TextStyle(color: up ? Colors.greenAccent : Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          if (change != null)
+            Text(change!, style: TextStyle(color: up ? Colors.greenAccent : Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w600)),
           Icon(up ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: up ? Colors.greenAccent : Colors.redAccent, size: 16),
         ],
       ),

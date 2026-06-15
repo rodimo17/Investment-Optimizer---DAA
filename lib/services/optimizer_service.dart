@@ -72,17 +72,30 @@ class OptimizerService {
   int _statesCount = 0;
 
   Future<void> fetchLatestRates() async {
-    // Simulating a real API fetch with market fluctuations
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // Sync with ETF Price Service first for real-time stock data
+    final etfService = EtfPriceService();
+    final realTimeEtfs = await etfService.fetchRealTimePrices();
+
+    // Simulating a real API fetch with market fluctuations for banks
+    await Future.delayed(const Duration(milliseconds: 500));
     final random = Random();
     for (var i = 0; i < allOptions.length; i++) {
       final opt = allOptions[i];
-      // Banks change slightly, ETFs change more
-      double fluctuation = opt.type == InvestmentType.bank ? 0.001 : 0.005;
-      double delta = (random.nextDouble() * fluctuation * 2) - fluctuation;
       
-      // Update rate but keep it within realistic bounds
-      double newRate = (opt.annualReturnRate + delta).clamp(0.01, 0.25);
+      double newRate = opt.annualReturnRate;
+
+      // If it's an ETF, use the real-time data from the other service
+      if (opt.type == InvestmentType.etf) {
+        final match = realTimeEtfs.where((e) => opt.name.contains(e.ticker)).firstOrNull;
+        if (match != null) {
+          // Adjust rate based on real monthly performance (scaled for simulation)
+          newRate = (opt.annualReturnRate + (match.monthlyChange / 100)).clamp(0.05, 0.30);
+        }
+      } else {
+        // Banks change slightly
+        double delta = (random.nextDouble() * 0.002) - 0.001;
+        newRate = (opt.annualReturnRate + delta).clamp(0.01, 0.15);
+      }
       
       allOptions[i] = InvestmentOption(
         name: opt.name,
