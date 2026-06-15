@@ -1,3 +1,4 @@
+import 'dart:math';
 import '../models/investment_option.dart';
 
 enum StepType { evaluated, pruned, bestFound, backtrackInfo }
@@ -71,8 +72,30 @@ class OptimizerService {
   int _statesCount = 0;
 
   Future<void> fetchLatestRates() async {
-    // Simulating delay
-    await Future.delayed(const Duration(milliseconds: 1000));
+    // Simulating a real API fetch with market fluctuations
+    await Future.delayed(const Duration(milliseconds: 1500));
+    final random = Random();
+    for (var i = 0; i < allOptions.length; i++) {
+      final opt = allOptions[i];
+      // Banks change slightly, ETFs change more
+      double fluctuation = opt.type == InvestmentType.bank ? 0.001 : 0.005;
+      double delta = (random.nextDouble() * fluctuation * 2) - fluctuation;
+      
+      // Update rate but keep it within realistic bounds
+      double newRate = (opt.annualReturnRate + delta).clamp(0.01, 0.25);
+      
+      allOptions[i] = InvestmentOption(
+        name: opt.name,
+        annualReturnRate: newRate,
+        baseReturnRate: opt.baseReturnRate,
+        type: opt.type,
+        riskLevel: opt.riskLevel,
+        minInvestment: opt.minInvestment,
+        interestCap: opt.interestCap,
+        safetyRating: opt.safetyRating,
+        liquidityScore: opt.liquidityScore,
+      );
+    }
   }
 
   OptimizationResult solveKnapsack({
