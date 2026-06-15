@@ -26,7 +26,7 @@ class EtfPriceService {
 
   // 🔑 ALPHA VANTAGE CONFIGURATION
   // Get your free key at: https://www.alphavantage.co/support/#api-key
-  static const String _apiKey = 'DEMO_KEY'; // Replace 'DEMO_KEY' with your actual key
+  static const String _apiKey = 'SY17FWZYN4Y69FX4';
   static const String _baseUrl = 'https://www.alphavantage.co/query';
 
   double _usdToPhp = 58.50;
