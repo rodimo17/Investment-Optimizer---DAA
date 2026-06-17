@@ -57,6 +57,10 @@ class OptimizationResult {
 }
 
 class OptimizerService {
+  static final OptimizerService _instance = OptimizerService._internal();
+  factory OptimizerService() => _instance;
+  OptimizerService._internal();
+
   final List<InvestmentOption> allOptions = [
     InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.10, baseReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 100, interestCap: 100000, safetyRating: 8, liquidityScore: 10),
     InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, baseReturnRate: 0.03, type: InvestmentType.bank, riskLevel: 'Conservative', minInvestment: 1, interestCap: 400000, safetyRating: 9, liquidityScore: 10),
@@ -114,6 +118,7 @@ class OptimizerService {
     required String riskPreference,
     required String horizon,
     required int maxOptions,
+    required List<double> userSplits,
   }) {
     _maxProfit = -1.0;
     _bestAllocations = [];
@@ -133,8 +138,11 @@ class OptimizerService {
     }).toList();
 
     available.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
+    
+    // Ensure splits are sorted descending so highest % goes to best asset
+    List<double> sortedSplits = [...userSplits]..sort((a, b) => b.compareTo(a));
 
-    _backtrack(available, 0, [], capacity, maxOptions, timeFactor);
+    _backtrack(available, 0, [], capacity, maxOptions, timeFactor, sortedSplits);
 
     return OptimizationResult(
       allocations: _bestAllocations,
@@ -145,66 +153,41 @@ class OptimizerService {
     );
   }
 
-  void _backtrack(List<InvestmentOption> options, int index, List<InvestmentOption> current, double capacity, int limit, double timeFactor) {
+  void _backtrack(List<InvestmentOption> options, int index, List<InvestmentOption> current, double capacity, int limit, double timeFactor, List<double> splits) {
     _statesCount++;
 
-    // Base case: we have enough items or we ran out of options
     if (current.length == limit || index == options.length) {
       if (current.isNotEmpty) {
-        _evaluateEqualTiered(current, capacity, timeFactor, limit);
+        _evaluateUserSplit(current, capacity, timeFactor, splits);
       }
       return;
     }
 
-    // --- DAA BOUNDING FUNCTION ---
-    // Calculate best possible profit from here
-    double currentP = _calculateCurrentProfit(current, capacity, timeFactor);
-    double potentialP = _calculateRemainingBound(options, index, capacity, limit - current.length, timeFactor);
-    
-    // Prune if this branch can't beat our best, OR if it's less diversified than our best found so far
-    if (_bestAllocations.length == limit && (currentP + potentialP) <= _maxProfit) {
-      _prunedCount++;
-      return;
-    }
-
-    // Path 1: Include (Only if it doesn't exceed limit)
+    // Include
     if (current.length < limit) {
       current.add(options[index]);
-      _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+      _backtrack(options, index + 1, current, capacity, limit, timeFactor, splits);
       current.removeLast();
     }
-    
-    // Path 2: Exclude
-    _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+
+    // Exclude
+    _backtrack(options, index + 1, current, capacity, limit, timeFactor, splits);
   }
 
-  double _calculateCurrentProfit(List<InvestmentOption> selection, double totalCapacity, double timeFactor) {
-    if (selection.isEmpty) return 0;
-    double splitAmount = totalCapacity / selection.length;
-    double profit = 0;
-    for (var opt in selection) {
-      profit += (splitAmount * opt.annualReturnRate) * timeFactor;
-    }
-    return profit;
-  }
+  void _evaluateUserSplit(List<InvestmentOption> selection, double totalCapacity, double timeFactor, List<double> splits) {
+    // Sort selection by return rate to match with descending splits
+    List<InvestmentOption> rankedSelection = [...selection];
+    rankedSelection.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
 
-  double _calculateRemainingBound(List<InvestmentOption> options, int startIndex, double capacity, int slotsLeft, double timeFactor) {
-    double bound = 0;
-    // Greedy assumption: remaining capital is split equally among the best remaining options
-    double splitAmount = capacity / (slotsLeft > 0 ? slotsLeft : 1);
-    for (int i = startIndex; i < options.length && i < startIndex + slotsLeft; i++) {
-      bound += (splitAmount * options[i].annualReturnRate) * timeFactor;
-    }
-    return bound;
-  }
-
-  void _evaluateEqualTiered(List<InvestmentOption> selection, double totalCapacity, double timeFactor, int targetLimit) {
-    double splitAmount = totalCapacity / selection.length;
     double currentTotalProfit = 0;
     List<Allocation> currentAllocations = [];
 
-    for (var option in selection) {
-      if (splitAmount < option.minInvestment) return;
+    for (int i = 0; i < rankedSelection.length; i++) {
+      var option = rankedSelection[i];
+      double splitPercent = i < splits.length ? splits[i] : 0.0;
+      double amount = totalCapacity * splitPercent;
+
+      if (amount < option.minInvestment) return;
 
       double highRateAmount = 0;
       double baseRateAmount = 0;
@@ -212,13 +195,13 @@ class OptimizerService {
       double baseRateProfit = 0;
 
       if (option.interestCap != null) {
-        highRateAmount = splitAmount.clamp(0, option.interestCap!);
-        baseRateAmount = (splitAmount - highRateAmount).clamp(0, double.infinity);
+        highRateAmount = amount.clamp(0, option.interestCap!);
+        baseRateAmount = (amount - highRateAmount).clamp(0, double.infinity);
         highRateProfit = (highRateAmount * option.annualReturnRate) * timeFactor;
         baseRateProfit = (baseRateAmount * option.baseReturnRate) * timeFactor;
       } else {
-        highRateAmount = splitAmount;
-        highRateProfit = (splitAmount * option.annualReturnRate) * timeFactor;
+        highRateAmount = amount;
+        highRateProfit = (amount * option.annualReturnRate) * timeFactor;
       }
 
       double totalProfit = highRateProfit + baseRateProfit;
@@ -226,47 +209,23 @@ class OptimizerService {
 
       currentAllocations.add(Allocation(
         option: option,
-        amount: splitAmount,
+        amount: amount,
         highRateAmount: highRateAmount,
         baseRateAmount: baseRateAmount,
         highRateProfit: highRateProfit,
         baseRateProfit: baseRateProfit,
         profit: totalProfit,
-        rank: 0,
+        rank: i + 1,
       ));
     }
 
-    // THE DIVERSIFICATION RULE: 
-    // 1. If this combo has MORE assets than our current best, it's better (even if profit is slightly lower)
-    // 2. If it has SAME assets, pick the one with MORE profit.
-    bool isBetter = false;
-    if (_bestAllocations.isEmpty) {
-      isBetter = true;
-    } else if (selection.length > _bestAllocations.length) {
-      isBetter = true;
-    } else if (selection.length == _bestAllocations.length) {
-      isBetter = currentTotalProfit > _maxProfit;
-    }
-
-    if (isBetter) {
+    if (currentTotalProfit > _maxProfit) {
       _maxProfit = currentTotalProfit;
-      currentAllocations.sort((a, b) => b.option.overallScore.compareTo(a.option.overallScore));
-      _bestAllocations = currentAllocations.asMap().entries.map((e) {
-        return Allocation(
-          option: e.value.option,
-          amount: e.value.amount,
-          highRateAmount: e.value.highRateAmount,
-          baseRateAmount: e.value.baseRateAmount,
-          highRateProfit: e.value.highRateProfit,
-          baseRateProfit: e.value.baseRateProfit,
-          profit: e.value.profit,
-          rank: e.key + 1,
-        );
-      }).toList();
+      _bestAllocations = currentAllocations;
 
       _steps.add(TraceStep(
         type: StepType.bestFound,
-        title: 'Optimal Diversified Strategy Found',
+        title: 'New Strategy Found with Your Splits',
         description: selection.map((e) => e.name).join(" + "),
         profit: currentTotalProfit,
       ));
