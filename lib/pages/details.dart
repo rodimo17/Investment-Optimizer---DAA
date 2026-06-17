@@ -4,6 +4,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 import 'home.dart';
 import '../services/etf_price_service.dart';
+import '../services/optimizer_service.dart';
+import '../models/investment_option.dart';
 
 class DetailsPage extends StatefulWidget {
   const DetailsPage({super.key});
@@ -239,6 +241,14 @@ class _DetailsPageState extends State<DetailsPage> {
   }
 
   Widget _buildInterestRatesCard() {
+    final optimizerService = OptimizerService();
+    final banks = optimizerService.allOptions
+        .where((opt) => opt.type == InvestmentType.bank)
+        .toList();
+    
+    // Sort by return rate for better "Scoring" feel
+    banks.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -252,62 +262,93 @@ class _DetailsPageState extends State<DetailsPage> {
         children: [
           const Row(
             children: [
-              Icon(Icons.stars, color: Colors.orange, size: 20),
+              Icon(Icons.stars_rounded, color: Colors.orange, size: 22),
               SizedBox(width: 12),
-              Text('Investment Scoring', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text('Investment Scoring', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -0.5)),
             ],
           ),
           const Padding(
-            padding: EdgeInsets.only(left: 32),
-            child: Text('Ranked by Safety, Liquidity & Yield', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            padding: EdgeInsets.only(left: 34, top: 4),
+            child: Text('LIVE BANK RATES & SAFETY METRICS', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
           ),
           const SizedBox(height: 32),
-          _bankRow('SeaBank', '4.25%', 9, 10, Icons.waves),
-          _bankRow('GoTyme Bank', '4.00%', 9, 10, Icons.credit_card_outlined),
-          _bankRow('Maya Bank', '3.50%', 8, 10, Icons.account_balance_wallet_outlined),
-          _bankRow('UNO Digital', '4.25%', 7, 9, Icons.verified_user_outlined),
-          _bankRow('Tonik Bank', '4.00%', 8, 8, Icons.savings_outlined),
-          _bankRow('CIMB Bank', '2.50%', 9, 9, Icons.account_balance_outlined),
+          ...banks.map((bank) => _bankRow(
+                bank.name,
+                '${(bank.annualReturnRate * 100).toStringAsFixed(2)}%',
+                bank.safetyRating,
+                bank.liquidityScore,
+                bank.name.contains('SeaBank') ? Icons.waves : 
+                bank.name.contains('Maya') ? Icons.account_balance_wallet_outlined :
+                Icons.account_balance_rounded,
+              )),
         ],
       ),
     );
   }
 
   Widget _bankRow(String name, String rate, int safety, int liquidity, IconData icon) {
+    // Calculate a visual score based on return, safety and liquidity
+    final double scoreValue = (safety + liquidity + (double.tryParse(rate.replaceAll('%', '')) ?? 0)) / 25;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, size: 20, color: Colors.deepPurple),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F7),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, size: 22, color: const Color(0xFF4A148C)),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -0.5)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildMetric(Icons.shield_rounded, 'Safety', '$safety/10'),
+                        const SizedBox(width: 16),
+                        _buildMetric(Icons.speed_rounded, 'Liquid', '$liquidity/10'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.deepPurple[50], borderRadius: BorderRadius.circular(10)),
-                child: Text(rate, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple, fontSize: 14)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF4A148C), Color(0xFF7B1FA2)]),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(rate, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('APY YIELD', style: TextStyle(color: Colors.grey[400], fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Row(
-              children: [
-                _buildMetric(Icons.shield_outlined, 'Safety', '$safety/10'),
-                const SizedBox(width: 24),
-                _buildMetric(Icons.speed_outlined, 'Liquidity', '$liquidity/10'),
-              ],
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: scoreValue.clamp(0.0, 1.0),
+              backgroundColor: Colors.grey[100],
+              color: const Color(0xFF4A148C).withOpacity(0.6),
+              minHeight: 4,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           const Divider(height: 1, color: Color(0xFFF5F5F5)),
         ],
       ),

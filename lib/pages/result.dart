@@ -368,6 +368,11 @@ class _ResultPageState extends State<ResultPage> {
                                   ),
                                 ),
                               ),
+                              const Spacer(),
+                              Text(
+                                'Rank #${alloc.rank}',
+                                style: TextStyle(color: Colors.deepPurple[900], fontSize: 11, fontWeight: FontWeight.w900),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -377,7 +382,7 @@ class _ResultPageState extends State<ResultPage> {
                                 '₱${_currencyFormat.format(alloc.amount)}',
                                 style: TextStyle(
                                   color: Colors.grey[800],
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -389,11 +394,43 @@ class _ResultPageState extends State<ResultPage> {
                                 ),
                               ],
                               const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '+₱${_currencyFormat.format(alloc.profit)}',
+                                  style: TextStyle(
+                                    color: Colors.green[700],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
                               Icon(Icons.shield_moon_outlined, size: 12, color: Colors.grey[400]),
                               const SizedBox(width: 4),
                               Text(
-                                '${alloc.option.safetyRating}/10',
+                                'Safety: ${alloc.option.safetyRating}/10',
                                 style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(Icons.bolt_rounded, size: 12, color: Colors.amber[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Score: ${alloc.option.overallScore.toStringAsFixed(0)}',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w700),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Est. Profit',
+                                style: TextStyle(color: Colors.grey[400], fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                               ),
                             ],
                           ),
