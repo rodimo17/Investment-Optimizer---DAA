@@ -412,14 +412,31 @@ class _ResultPageState extends State<ResultPage> {
 
   Widget _buildDaaStatsMini(OptimizationResult res) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50], 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue[100]!),
+      ),
+      child: Column(
         children: [
-          const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
-          const SizedBox(width: 12),
-          const Text('Search Complexity: ', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
-          Text('${res.statesExplored} iterations', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+          Row(
+            children: [
+              const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
+              const SizedBox(width: 12),
+              const Text('Search Complexity: ', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+              Text('${res.statesExplored} iterations', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.content_cut_rounded, color: Colors.indigo, size: 18),
+              const SizedBox(width: 12),
+              const Text('Branches Pruned: ', style: TextStyle(color: Colors.indigo, fontSize: 12, fontWeight: FontWeight.w500)),
+              Text('${res.branchesPruned} paths skipped', style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ),
         ],
       ),
     );

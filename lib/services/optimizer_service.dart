@@ -1,5 +1,6 @@
 import 'dart:math';
 import '../models/investment_option.dart';
+import 'etf_price_service.dart';
 
 enum StepType { evaluated, pruned, bestFound, backtrackInfo }
 
@@ -44,12 +45,14 @@ class OptimizationResult {
   final double totalProfit;
   final List<TraceStep> steps;
   final int statesExplored;
+  final int branchesPruned;
 
   OptimizationResult({
     required this.allocations,
     required this.totalProfit,
     required this.steps,
     required this.statesExplored,
+    required this.branchesPruned,
   });
 }
 
@@ -70,29 +73,24 @@ class OptimizerService {
   List<Allocation> _bestAllocations = [];
   List<TraceStep> _steps = [];
   int _statesCount = 0;
+  int _prunedCount = 0;
 
   Future<void> fetchLatestRates() async {
-    // Sync with ETF Price Service first for real-time stock data
     final etfService = EtfPriceService();
     final realTimeEtfs = await etfService.fetchRealTimePrices();
 
-    // Simulating a real API fetch with market fluctuations for banks
     await Future.delayed(const Duration(milliseconds: 500));
     final random = Random();
     for (var i = 0; i < allOptions.length; i++) {
       final opt = allOptions[i];
-      
       double newRate = opt.annualReturnRate;
 
-      // If it's an ETF, use the real-time data from the other service
       if (opt.type == InvestmentType.etf) {
         final match = realTimeEtfs.where((e) => opt.name.contains(e.ticker)).firstOrNull;
         if (match != null) {
-          // Adjust rate based on real monthly performance (scaled for simulation)
           newRate = (opt.annualReturnRate + (match.monthlyChange / 100)).clamp(0.05, 0.30);
         }
       } else {
-        // Banks change slightly
         double delta = (random.nextDouble() * 0.002) - 0.001;
         newRate = (opt.annualReturnRate + delta).clamp(0.01, 0.15);
       }
@@ -121,6 +119,7 @@ class OptimizerService {
     _bestAllocations = [];
     _steps = [];
     _statesCount = 0;
+    _prunedCount = 0;
 
     double timeFactor = 1.0;
     if (horizon == '1 month') timeFactor = 1 / 12;
@@ -133,7 +132,8 @@ class OptimizerService {
       return true;
     }).toList();
 
-    // Pure Backtracking for selection
+    available.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
+
     _backtrack(available, 0, [], capacity, maxOptions, timeFactor);
 
     return OptimizationResult(
@@ -141,47 +141,70 @@ class OptimizerService {
       totalProfit: _maxProfit,
       steps: _steps,
       statesExplored: _statesCount,
+      branchesPruned: _prunedCount,
     );
   }
 
   void _backtrack(List<InvestmentOption> options, int index, List<InvestmentOption> current, double capacity, int limit, double timeFactor) {
     _statesCount++;
 
-    if (index == options.length || current.length == limit) {
+    // Base case: we have enough items or we ran out of options
+    if (current.length == limit || index == options.length) {
       if (current.isNotEmpty) {
         _evaluateEqualTiered(current, capacity, timeFactor, limit);
       }
       return;
     }
 
-    current.add(options[index]);
-    _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+    // --- DAA BOUNDING FUNCTION ---
+    // Calculate best possible profit from here
+    double currentP = _calculateCurrentProfit(current, capacity, timeFactor);
+    double potentialP = _calculateRemainingBound(options, index, capacity, limit - current.length, timeFactor);
     
-    _steps.add(TraceStep(
-      type: StepType.backtrackInfo,
-      title: 'Backtracking',
-      description: 'Removing ${options[index].name} to explore other combinations',
-    ));
-    current.removeLast();
+    // Prune if this branch can't beat our best, OR if it's less diversified than our best found so far
+    if (_bestAllocations.length == limit && (currentP + potentialP) <= _maxProfit) {
+      _prunedCount++;
+      return;
+    }
 
+    // Path 1: Include (Only if it doesn't exceed limit)
+    if (current.length < limit) {
+      current.add(options[index]);
+      _backtrack(options, index + 1, current, capacity, limit, timeFactor);
+      current.removeLast();
+    }
+    
+    // Path 2: Exclude
     _backtrack(options, index + 1, current, capacity, limit, timeFactor);
   }
 
+  double _calculateCurrentProfit(List<InvestmentOption> selection, double totalCapacity, double timeFactor) {
+    if (selection.isEmpty) return 0;
+    double splitAmount = totalCapacity / selection.length;
+    double profit = 0;
+    for (var opt in selection) {
+      profit += (splitAmount * opt.annualReturnRate) * timeFactor;
+    }
+    return profit;
+  }
+
+  double _calculateRemainingBound(List<InvestmentOption> options, int startIndex, double capacity, int slotsLeft, double timeFactor) {
+    double bound = 0;
+    // Greedy assumption: remaining capital is split equally among the best remaining options
+    double splitAmount = capacity / (slotsLeft > 0 ? slotsLeft : 1);
+    for (int i = startIndex; i < options.length && i < startIndex + slotsLeft; i++) {
+      bound += (splitAmount * options[i].annualReturnRate) * timeFactor;
+    }
+    return bound;
+  }
+
   void _evaluateEqualTiered(List<InvestmentOption> selection, double totalCapacity, double timeFactor, int targetLimit) {
-    // Every selected company gets an identical slice of capital
     double splitAmount = totalCapacity / selection.length;
     double currentTotalProfit = 0;
     List<Allocation> currentAllocations = [];
 
     for (var option in selection) {
-      if (splitAmount < option.minInvestment) {
-        _steps.add(TraceStep(
-          type: StepType.pruned,
-          title: 'Diversification Constraint',
-          description: '${option.name} needs at least ₱${option.minInvestment}',
-        ));
-        return;
-      }
+      if (splitAmount < option.minInvestment) return;
 
       double highRateAmount = 0;
       double baseRateAmount = 0;
@@ -191,7 +214,6 @@ class OptimizerService {
       if (option.interestCap != null) {
         highRateAmount = splitAmount.clamp(0, option.interestCap!);
         baseRateAmount = (splitAmount - highRateAmount).clamp(0, double.infinity);
-        
         highRateProfit = (highRateAmount * option.annualReturnRate) * timeFactor;
         baseRateProfit = (baseRateAmount * option.baseReturnRate) * timeFactor;
       } else {
@@ -214,18 +236,16 @@ class OptimizerService {
       ));
     }
 
+    // THE DIVERSIFICATION RULE: 
+    // 1. If this combo has MORE assets than our current best, it's better (even if profit is slightly lower)
+    // 2. If it has SAME assets, pick the one with MORE profit.
     bool isBetter = false;
-    bool currentMeetsLimit = selection.length == targetLimit;
-    
     if (_bestAllocations.isEmpty) {
       isBetter = true;
-    } else {
-      bool bestMeetsLimit = _bestAllocations.length == targetLimit;
-      if (currentMeetsLimit && !bestMeetsLimit) {
-        isBetter = true;
-      } else if (currentMeetsLimit == bestMeetsLimit) {
-        isBetter = currentTotalProfit > _maxProfit;
-      }
+    } else if (selection.length > _bestAllocations.length) {
+      isBetter = true;
+    } else if (selection.length == _bestAllocations.length) {
+      isBetter = currentTotalProfit > _maxProfit;
     }
 
     if (isBetter) {
@@ -246,14 +266,7 @@ class OptimizerService {
 
       _steps.add(TraceStep(
         type: StepType.bestFound,
-        title: currentMeetsLimit ? 'Optimal Diversified Selection' : 'Optimal Selection (Partial)',
-        description: selection.map((e) => e.name).join(" + "),
-        profit: currentTotalProfit,
-      ));
-    } else {
-      _steps.add(TraceStep(
-        type: StepType.evaluated,
-        title: 'Explored Selection',
+        title: 'Optimal Diversified Strategy Found',
         description: selection.map((e) => e.name).join(" + "),
         profit: currentTotalProfit,
       ));
