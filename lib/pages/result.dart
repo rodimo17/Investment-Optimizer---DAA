@@ -22,8 +22,7 @@ class _ResultPageState extends State<ResultPage> {
   @override
   void initState() {
     super.initState();
-    // Start animation delay for the "visualization" feel
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) setState(() => _showSteps = true);
     });
   }
@@ -55,7 +54,7 @@ class _ResultPageState extends State<ResultPage> {
                   children: [
                     Icon(Icons.psychology, size: 16, color: Colors.indigo),
                     SizedBox(width: 8),
-                    Text('PURE BACKTRACKING SEARCH', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 12, letterSpacing: 1.2)),
+                    Text('PURE BACKTRACKING SEARCH PROGRESS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 12, letterSpacing: 1.2)),
                   ],
                 ),
               ),
@@ -136,12 +135,7 @@ class _ResultPageState extends State<ResultPage> {
                 children: [
                   Text(
                     'Profit Analysis',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.grey[800],
-                      letterSpacing: -0.5,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.grey[800], letterSpacing: -0.5),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -153,7 +147,7 @@ class _ResultPageState extends State<ResultPage> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Optimized Yield',
+                        'Optimized Yield Layers',
                         style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                     ],
@@ -191,7 +185,7 @@ class _ResultPageState extends State<ResultPage> {
                         TextStyle(color: Colors.grey[900], fontWeight: FontWeight.bold, fontSize: 14),
                         children: [
                           TextSpan(
-                            text: '${((alloc.profit / (alloc.amount > 0 ? alloc.amount : 1)) * 100 * 12).toStringAsFixed(2)}% ROI',
+                            text: '${(alloc.option.annualReturnRate * 100).toStringAsFixed(2)}% ROI',
                             style: const TextStyle(color: Colors.deepPurple, fontSize: 11, fontWeight: FontWeight.w600),
                           ),
                         ],
@@ -212,11 +206,7 @@ class _ResultPageState extends State<ResultPage> {
                             space: 12,
                             child: Text(
                               res.allocations[value.toInt()].option.name.split(' ')[0],
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[600],
-                              ),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[600]),
                             ),
                           );
                         }
@@ -249,20 +239,15 @@ class _ResultPageState extends State<ResultPage> {
                         width: 32,
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                         rodStackItems: [
-                          BarChartRodStackItem(0, alloc.baseRateProfit, Colors.deepPurple.withOpacity(0.2)),
+                          BarChartRodStackItem(0, alloc.baseRateProfit, Colors.deepPurple.withOpacity(0.25)),
                           BarChartRodStackItem(alloc.baseRateProfit, alloc.profit, Colors.deepPurple),
                         ],
-                        gradient: LinearGradient(
-                          colors: [Colors.deepPurple, Colors.deepPurple.withOpacity(0.8)],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                        ),
                       ),
                     ],
                   );
                 }).toList(),
               ),
-              duration: const Duration(milliseconds: 1000),
+              duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutQuart,
             ),
           ),
@@ -270,9 +255,9 @@ class _ResultPageState extends State<ResultPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLegendItem('Elite Yield', Colors.deepPurple),
+              _buildLegendItem('Elite Boosted Yield', Colors.deepPurple),
               const SizedBox(width: 24),
-              _buildLegendItem('Base Rate', Colors.deepPurple.withOpacity(0.2)),
+              _buildLegendItem('Base Tier Yield', Colors.deepPurple.withOpacity(0.25)),
             ],
           ),
         ],
@@ -286,20 +271,10 @@ class _ResultPageState extends State<ResultPage> {
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
         ),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -307,7 +282,7 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildMainStatsCard(OptimizationResult res) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white, 
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
       ),
@@ -347,54 +322,28 @@ class _ResultPageState extends State<ResultPage> {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                alloc.option.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.5),
-                              ),
+                              Text(alloc.option.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.5)),
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurple.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  alloc.option.typeLabel,
-                                  style: const TextStyle(
-                                    color: Colors.deepPurple,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
+                                decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
+                                child: Text(alloc.option.typeLabel, style: const TextStyle(color: Colors.deepPurple, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                               ),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              Text(
-                                '₱${_currencyFormat.format(alloc.amount)}',
-                                style: TextStyle(
-                                  color: Colors.grey[800],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (alloc.baseRateAmount > 0) ...[
-                                const SizedBox(width: 4),
+                              Text('₱${_currencyFormat.format(alloc.amount)}', style: TextStyle(color: Colors.grey[800], fontSize: 12, fontWeight: FontWeight.w600)),
+                              if (alloc.option.annualReturnRate > alloc.option.baseReturnRate) ...[
+                                const SizedBox(width: 6),
                                 Text(
-                                  '(+₱${_currencyFormat.format(alloc.baseRateAmount)} Base)',
+                                  '(Earns Tiered Boost)',
                                   style: TextStyle(color: Colors.orange[800], fontSize: 10, fontWeight: FontWeight.w500),
                                 ),
                               ],
                               const Spacer(),
-                              Icon(Icons.shield_moon_outlined, size: 12, color: Colors.grey[400]),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${alloc.option.safetyRating}/10',
-                                style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w500),
-                              ),
+                              Text('${(alloc.option.annualReturnRate * 100).toStringAsFixed(2)}% APR', style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ],
@@ -434,15 +383,15 @@ class _ResultPageState extends State<ResultPage> {
       case StepType.pruned: icon = Icons.block; color = Colors.grey; break;
       case StepType.backtrackInfo: icon = Icons.account_tree_outlined; color = Colors.teal; break;
     }
-    
+
     return TweenAnimationBuilder(
-      duration: Duration(milliseconds: 300 + (index * 50).clamp(0, 1000)),
+      duration: const Duration(milliseconds: 350),
       tween: Tween<double>(begin: 0, end: 1),
       builder: (context, double value, child) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
+            offset: Offset(0, 15 * (1 - value)),
             child: child,
           ),
         );

@@ -190,8 +190,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 change: '${etf.monthlyChange >= 0 ? '+' : ''}${etf.monthlyChange.toStringAsFixed(2)}%',
                 up: etf.monthlyChange >= 0
               )),
-            const _TickerItem(label: 'MAYA', value: '10.0% APY', up: true),
-            const _TickerItem(label: 'SEABANK', value: '4.25% APY', up: false),
           ],
         ),
       ),
@@ -205,66 +203,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSummarySection(),
           const SizedBox(height: 24),
           _buildInputCard(),
           const SizedBox(height: 24),
           _buildActionCard(),
         ],
       ),
-    );
-  }
-
-  Widget _buildSummarySection() {
-    return ValueListenableBuilder(
-      valueListenable: capitalController,
-      builder: (context, value, child) {
-        return _EntranceAnimation(
-          child: Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Color(0xFF1A237E), Color(0xFF311B92)],
-              ),
-              borderRadius: BorderRadius.circular(32),
-              boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 25, offset: const Offset(0, 12))],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('INVESTMENT TARGET', 
-                        style: TextStyle(
-                          color: Colors.white60, 
-                          fontSize: 10, 
-                          fontWeight: FontWeight.w900, 
-                          letterSpacing: 2.0,
-                        )),
-                      const SizedBox(height: 12),
-                      Text('₱${_currencyFormat.format(_currentCapital)}', 
-                        style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 32, 
-                          fontWeight: FontWeight.bold, 
-                          letterSpacing: -1.0,
-                          height: 1.1,
-                        )),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                  child: const Icon(Icons.analytics_rounded, color: Colors.greenAccent, size: 28),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -357,9 +301,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)),
+                  Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.analytics, color: Colors.deepPurple, size: 20)),
                   const SizedBox(width: 14),
-                  const Text('Strategy Engine', 
+                  const Text('Inputs', 
                     style: TextStyle(
                       fontWeight: FontWeight.w900, 
                       fontSize: 18, 

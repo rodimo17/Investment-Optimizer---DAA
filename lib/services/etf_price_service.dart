@@ -24,8 +24,7 @@ class EtfPriceService {
   factory EtfPriceService() => _instance;
   EtfPriceService._internal();
 
-  // 🔑 ALPHA VANTAGE CONFIGURATION
-  // Get your free key at: https://www.alphavantage.co/support/#api-key
+  //api key for alphavantage
   static const String _apiKey = 'SY17FWZYN4Y69FX4';
   static const String _baseUrl = 'https://www.alphavantage.co/query';
 
