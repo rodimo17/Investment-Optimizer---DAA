@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.5.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -35,6 +35,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.3.0
+  fl_chart: ^0.69.0
+  http: ^1.2.0
+  intl: ^0.19.0
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -81,10 +85,10 @@ flutter:
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   fonts:
-    - family: Roboto
+    - family: RobotoThin
       fonts:
         - asset: fonts/Roboto-ExtraLight.ttf
-          weight: 500
+          weight: 100
   
     - family:  MyFlutterApp
       fonts:
