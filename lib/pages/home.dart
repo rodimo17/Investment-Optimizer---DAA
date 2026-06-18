@@ -14,7 +14,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController capitalController = TextEditingController();
-  final TextEditingController amountController = TextEditingController(text: '2'); 
+  final TextEditingController allocationCapController = TextEditingController(text: '40');
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
   bool _isUpdatingRates = false;
@@ -33,16 +33,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     capitalController.removeListener(_formatCurrency);
+    capitalController.dispose();
+    allocationCapController.dispose();
     super.dispose();
   }
 
   void _formatCurrency() {
     String text = capitalController.text.replaceAll(',', '');
     if (text.isEmpty) return;
-    
-    // Remove listener to prevent infinite loop
     capitalController.removeListener(_formatCurrency);
-    
     double? value = double.tryParse(text);
     if (value != null) {
       String formatted = _currencyFormat.format(value);
@@ -51,7 +50,6 @@ class _HomePageState extends State<HomePage> {
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
-    
     capitalController.addListener(_formatCurrency);
   }
 
@@ -73,7 +71,6 @@ class _HomePageState extends State<HomePage> {
   void _runOptimization() async {
     String cleanText = capitalController.text.replaceAll(',', '');
     double capital = double.tryParse(cleanText) ?? 0.0;
-    int maxOptions = int.tryParse(amountController.text) ?? 2;
 
     if (capital <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,15 +84,14 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() => _isCalculating = true);
-    
-    // Simulate complex calculation for UI feedback
     await Future.delayed(const Duration(milliseconds: 1500));
 
+    final etfAllocationCapPercent = double.tryParse(allocationCapController.text) ?? 40;
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
       horizon: selectedHorizon,
-      maxOptions: maxOptions,
+      etfAllocationCapPercent: etfAllocationCapPercent,
     );
 
     setState(() => _isCalculating = false);
@@ -104,7 +100,8 @@ class _HomePageState extends State<HomePage> {
       Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => ResultPage(optimizationResult: result),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              ResultPage(optimizationResult: result),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
@@ -155,9 +152,21 @@ class _HomePageState extends State<HomePage> {
         highlightColor: Colors.grey[100]!,
         child: Column(
           children: [
-            Container(height: 350, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
+            Container(
+              height: 350,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
             const SizedBox(height: 24),
-            Container(height: 60, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15))),
+            Container(
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
           ],
         ),
       ),
@@ -186,12 +195,20 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text(
                     'Investment Optimizer',
-                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Text(
                     'DAA Project: Backtracking Solver',
-                    style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 0.5),
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ],
               ),
@@ -199,7 +216,10 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
                 )
               else
                 IconButton(
@@ -218,7 +238,13 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -228,7 +254,10 @@ class _HomePageState extends State<HomePage> {
             children: [
               Icon(Icons.tune, color: Colors.deepPurple, size: 20),
               SizedBox(width: 8),
-              Text('Configuration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                'Configuration',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ],
           ),
           const Divider(height: 32),
@@ -275,13 +304,14 @@ class _HomePageState extends State<HomePage> {
           _buildRiskField(),
           const SizedBox(height: 24),
           _buildInputField(
-            label: 'Max Diversification',
-            icon: Icons.grid_view_outlined,
+            label: 'ETF Allocation Cap',
+            icon: Icons.pie_chart_outline,
             child: TextField(
-              controller: amountController,
+              controller: allocationCapController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                hintText: 'Number of options',
+                hintText: 'e.g. 40',
+                suffixText: '%',
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -306,6 +336,8 @@ class _HomePageState extends State<HomePage> {
     else if (selectedRisk == 'Moderate') riskColor = Colors.orange;
     else riskColor = Colors.red;
 
+    final int maxRisk = OptimizerService.riskLimits[selectedRisk] ?? 6;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -313,13 +345,26 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(Icons.shield_outlined, size: 16, color: Colors.grey[600]),
             const SizedBox(width: 8),
-            Text('Risk Tolerance', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(
+              'Risk Tolerance',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const Spacer(),
             Container(
-              width: 10, height: 10,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Max risk score: $maxRisk',
+          style: const TextStyle(color: Colors.grey, fontSize: 11),
         ),
         const SizedBox(height: 8),
         Container(
@@ -336,7 +381,15 @@ class _HomePageState extends State<HomePage> {
             items: ['Conservative', 'Moderate', 'Aggressive']
                 .map((r) => DropdownMenuItem(
                       value: r,
-                      child: Text(r, style: TextStyle(color: r == 'Conservative' ? Colors.green : (r == 'Moderate' ? Colors.orange : Colors.red), fontWeight: FontWeight.bold)),
+                      child: Text(
+                        r,
+                        style: TextStyle(
+                          color: r == 'Conservative'
+                              ? Colors.green
+                              : (r == 'Moderate' ? Colors.orange : Colors.red),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ))
                 .toList(),
             onChanged: (v) => setState(() => selectedRisk = v!),
@@ -346,7 +399,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildInputField({required String label, required IconData icon, required Widget child}) {
+  Widget _buildInputField({
+    required String label,
+    required IconData icon,
+    required Widget child,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -354,7 +411,14 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(icon, size: 16, color: Colors.grey[600]),
             const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -372,7 +436,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildActionCard() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: _runOptimization,
@@ -389,7 +453,14 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(Icons.analytics_outlined),
             SizedBox(width: 12),
-            Text('RUN BACKTRACKING SOLVER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+            Text(
+              'RUN BACKTRACKING SOLVER',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                letterSpacing: 1,
+              ),
+            ),
           ],
         ),
       ),
@@ -399,7 +470,9 @@ class _HomePageState extends State<HomePage> {
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
+        ],
       ),
       child: BottomNavigationBar(
         backgroundColor: Colors.white,
@@ -410,7 +483,10 @@ class _HomePageState extends State<HomePage> {
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage()));
+          if (index == 2) Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DetailsPage()),
+          );
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
