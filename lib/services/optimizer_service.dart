@@ -1,3 +1,5 @@
+import 'dart:math';
+import 'etf_price_service.dart';
 import '../models/investment_option.dart';
 
 /// Required on InvestmentOption: name (String), annualReturnRate (double),

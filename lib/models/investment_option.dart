@@ -2,38 +2,36 @@ enum InvestmentType { bank, etf, govt, reit }
 
 class InvestmentOption {
   final String name;
-  final double annualReturnRate; 
-  final double baseReturnRate; 
-  final double baseRateAmount; 
+  final double annualReturnRate;
   final InvestmentType type;
   final String riskLevel;
-  final double minInvestment;
-  final double? interestCap;
   final int riskScore;
+  final double minInvestment;
+  final double depositAmount;
 
   InvestmentOption({
     required this.name,
     required this.annualReturnRate,
-    required this.baseRateAmount,
-    required this.baseReturnRate,
     required this.type,
     required this.riskLevel,
-    required this.minInvestment,
-    this.interestCap,
     required this.riskScore,
+    required this.minInvestment,
+    this.depositAmount = 0.0,
   });
 
-  InvestmentOption copyWith({double? annualReturnRate}) {
+  InvestmentOption copyWith({
+    double? annualReturnRate,
+    double? depositAmount,
+    int? riskScore,
+  }) {
     return InvestmentOption(
       name: name,
       annualReturnRate: annualReturnRate ?? this.annualReturnRate,
-      baseReturnRate: baseReturnRate,
-      baseRateAmount: baseRateAmount,
       type: type,
       riskLevel: riskLevel,
+      riskScore: riskScore ?? this.riskScore,
       minInvestment: minInvestment,
-      interestCap: interestCap,
-      riskScore: riskScore,
+      depositAmount: depositAmount ?? this.depositAmount,
     );
   }
 
