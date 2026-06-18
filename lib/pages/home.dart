@@ -27,22 +27,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   String selectedHorizon = '1 month';
   String selectedRisk = 'Moderate';
-  bool _isUpdatingRates = false;
   bool _isCalculating = false;
 
   late AnimationController _buttonScaleController;
   final OptimizerService _optimizerService = OptimizerService();
-  final EtfPriceService _etfService = EtfPriceService();
   final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
   
-  List<EtfPriceData> _liveEtfs = [];
+  // Note: Market data sync removed as backend fetchLatestRates is missing in reverted version
+  // We will focus on the User Split logic and the Knapsack solver.
 
   double get _currentCapital => double.tryParse(capitalController.text.replaceAll(',', '')) ?? 0.0;
 
   @override
   void initState() {
     super.initState();
-    _fetchRates();
     _buttonScaleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 100),
@@ -86,30 +84,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
-  Future<void> _fetchRates() async {
-    setState(() => _isUpdatingRates = true);
-    final results = await Future.wait([
-      _optimizerService.fetchLatestRates(),
-      _etfService.fetchRealTimePrices(),
-    ]);
-    if (mounted) {
-      setState(() {
-        _isUpdatingRates = false;
-        _liveEtfs = results[1] as List<EtfPriceData>;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Live market data synced successfully!', 
-            style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.2)),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          backgroundColor: const Color(0xFF1A237E),
-        ),
-      );
-    }
-  }
-
   void _runOptimization() async {
     double capital = _currentCapital;
     int maxOptions = int.tryParse(amountController.text) ?? 2;
@@ -151,25 +125,25 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     setState(() => _isCalculating = true);
     await Future.delayed(const Duration(milliseconds: 1500));
 
-    // Prepare custom options with the user's splits as depositAmount
-    // We apply splits to all available options, sorted by performance
-    List<InvestmentOption> source = List.from(_optimizerService.allOptions);
-    source.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
-    
-    List<InvestmentOption> customOptions = [];
-    for (int i = 0; i < source.length; i++) {
-      // If we have a split for this rank, assign it
-      double amount = (i < splits.length) ? (capital * splits[i]) : 0.0;
-      customOptions.add(source[i].copyWith(depositAmount: amount));
+    // Prepare custom options by applying user splits to the ranked assets
+    List<InvestmentOption> ranked = List.from(_optimizerService.allOptions);
+    ranked.sort((a, b) => b.overallScore.compareTo(a.overallScore));
+
+    // Create a version of options where depositAmount is pre-calculated from splits
+    List<InvestmentOption> splitOptions = [];
+    for (int i = 0; i < ranked.length; i++) {
+      double percent = (i < splits.length) ? splits[i] : 0.0;
+      double deposit = capital * percent;
+      splitOptions.add(ranked[i].copyWith(depositAmount: deposit));
     }
 
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: selectedRisk,
       horizon: selectedHorizon,
-      minOptions: maxOptions, // Using user's asset count as the goal
+      minOptions: maxOptions, // Goal is to have this many assets
       maxOptions: maxOptions,
-      customOptions: customOptions,
+      customOptions: splitOptions,
     );
 
     setState(() => _isCalculating = false);
@@ -201,7 +175,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           Column(
             children: [
               _buildHeader(),
-              _buildLiveTicker(),
+              _buildSimpleTicker(), // Simplified static ticker as live data service is disabled
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 500),
@@ -218,45 +192,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildBackgroundDecor() {
     return Stack(
       children: [
-        Positioned(top: -30, right: -30, child: Container(width: 300, height: 300, decoration: BoxDecoration(color: const Color(0xFF7B1FA2).withOpacity(0.04), shape: BoxShape.circle))),
-        Positioned(top: 200, left: -50, child: Container(width: 150, height: 150, decoration: BoxDecoration(color: Colors.blue.withOpacity(0.03), shape: BoxShape.circle))),
-        Positioned(bottom: 100, left: -100, child: Container(width: 250, height: 250, decoration: BoxDecoration(color: const Color(0xFF4A148C).withOpacity(0.02), shape: BoxShape.circle))),
+        Positioned(top: -30, right: -30, child: Container(width: 300, height: 300, decoration: BoxDecoration(color: const Color(0xFF7B1FA2).withValues(alpha: 0.04), shape: BoxShape.circle))),
+        Positioned(top: 200, left: -50, child: Container(width: 150, height: 150, decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.03), shape: BoxShape.circle))),
+        Positioned(bottom: 100, left: -100, child: Container(width: 250, height: 250, decoration: BoxDecoration(color: const Color(0xFF4A148C).withValues(alpha: 0.02), shape: BoxShape.circle))),
       ],
     );
   }
 
-  Widget _buildLiveTicker() {
-    final banks = _optimizerService.allOptions
-        .where((o) => o.type == InvestmentType.bank)
-        .toList();
-    banks.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
-    final topBank = banks.isNotEmpty ? banks.first : null;
-
+  Widget _buildSimpleTicker() {
     return Container(
       width: double.infinity,
       color: const Color(0xFF1A237E),
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SingleChildScrollView(
+      child: const SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const SizedBox(width: 24),
-            if (_liveEtfs.isEmpty)
-              const Text('Connecting to live markets...', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5))
-            else
-              ..._liveEtfs.map((etf) => _TickerItem(
-                label: etf.ticker, 
-                value: '₱${_currencyFormat.format(etf.currentPricePhp)}', 
-                change: '${etf.monthlyChange >= 0 ? '+' : ''}${etf.monthlyChange.toStringAsFixed(2)}%',
-                up: etf.monthlyChange >= 0
-              )),
-            if (topBank != null)
-              _TickerItem(
-                label: topBank.name.toUpperCase().replaceAll(' BANK', ''), 
-                value: '${(topBank.annualReturnRate * 100).toStringAsFixed(2)}% APY', 
-                up: true
-              ),
-            const _TickerItem(label: 'USD/PHP', value: '58.45', up: true),
+            SizedBox(width: 24),
+            _TickerItem(label: 'MAYA', value: '10.0% APY', up: true),
+            _TickerItem(label: 'VOO', value: '12.5%', up: true),
+            _TickerItem(label: 'QQQ', value: '18.2%', up: true),
+            _TickerItem(label: 'USD/PHP', value: '58.45', up: true),
           ],
         ),
       ),
@@ -290,7 +246,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             decoration: BoxDecoration(
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A237E), Color(0xFF311B92)]),
               borderRadius: BorderRadius.circular(32),
-              boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 25, offset: const Offset(0, 12))],
+              boxShadow: [BoxShadow(color: Colors.indigo.withValues(alpha: 0.3), blurRadius: 25, offset: const Offset(0, 12))],
             ),
             child: Row(
               children: [
@@ -304,7 +260,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     ],
                   ),
                 ),
-                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.analytics_rounded, color: Colors.greenAccent, size: 28)),
+                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.analytics_rounded, color: Colors.greenAccent, size: 28)),
               ],
             ),
           ),
@@ -337,20 +293,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       width: double.infinity,
       decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4A148C), Color(0xFF6A1B9A), Color(0xFF7B1FA2)])),
       padding: const EdgeInsets.only(top: 70, bottom: 25, left: 24, right: 24),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Smart Investor', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1.0)), SizedBox(height: 6), Text('PRECISION OPTIMIZATION', style: TextStyle(color: Colors.white60, fontSize: 10, letterSpacing: 2.5, fontWeight: FontWeight.w800))]),
-          _buildRefreshButton(),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Smart Investor', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1.0)), SizedBox(height: 6), Text('PRECISION OPTIMIZATION', style: TextStyle(color: Colors.white60, fontSize: 10, letterSpacing: 2.5, fontWeight: FontWeight.w800))]),
         ],
       ),
-    );
-  }
-
-  Widget _buildRefreshButton() {
-    return GestureDetector(
-      onTap: _isUpdatingRates ? null : _fetchRates,
-      child: AnimatedContainer(duration: const Duration(milliseconds: 300), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle), child: _isUpdatingRates ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.refresh_rounded, color: Colors.white, size: 24)),
     );
   }
 
@@ -362,12 +310,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 40, offset: const Offset(0, 20))]),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 40, offset: const Offset(0, 20))]),
             padding: const EdgeInsets.all(28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)), const SizedBox(width: 14), const Text('Strategy Engine', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1A237E), letterSpacing: -0.5))]),
+                Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.auto_awesome_mosaic_rounded, color: Colors.deepPurple, size: 20)), const SizedBox(width: 14), const Text('Strategy Engine', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1A237E), letterSpacing: -0.5))]),
                 const SizedBox(height: 32),
                 _buildInputField(label: 'Available Capital', icon: Icons.account_balance_wallet_rounded, child: TextField(controller: capitalController, keyboardType: TextInputType.number, inputFormatters: [CurrencyInputFormatter()], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple, letterSpacing: -1.0), decoration: const InputDecoration(hintText: '0', border: InputBorder.none, isDense: true, prefixText: '₱ ', prefixStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepPurple)))),
                 const SizedBox(height: 20),
@@ -388,7 +336,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   children: List.generate(_percentControllers.length, (i) => Container(
                     width: 70,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.withOpacity(0.1))),
+                    decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))),
                     child: TextField(
                       controller: _percentControllers[i],
                       keyboardType: TextInputType.number,
@@ -412,7 +360,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     bool isValid = total == 100;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: isValid ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: isValid ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
       child: Text('${total.toStringAsFixed(0)}%', style: TextStyle(color: isValid ? Colors.green[700] : Colors.red[700], fontSize: 10, fontWeight: FontWeight.w900)),
     );
   }
@@ -437,12 +385,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         });
         HapticFeedback.lightImpact();
       },
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.withOpacity(0.1))), child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple))),
+      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.deepPurple.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.1))), child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple))),
     );
   }
 
   Widget _buildQuickSetButton(String label, double amount) {
-    return ActionChip(label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.deepPurple, fontSize: 11)), backgroundColor: Colors.deepPurple.withOpacity(0.04), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide.none), onPressed: () { _quickSet(amount); HapticFeedback.selectionClick(); });
+    return ActionChip(label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.deepPurple, fontSize: 11)), backgroundColor: Colors.deepPurple.withValues(alpha: 0.04), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide.none), onPressed: () { _quickSet(amount); HapticFeedback.selectionClick(); });
   }
 
   Widget _buildRiskField() {
@@ -450,24 +398,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final descs = {'Conservative': 'Safe yield & liquidity', 'Moderate': 'Balanced growth path', 'Aggressive': 'Maximized return potential'};
     Color riskColor = colors[selectedRisk] ?? Colors.grey;
     String riskDesc = descs[selectedRisk] ?? '';
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.shield_rounded, size: 16, color: Colors.grey[400]), const SizedBox(width: 8), const Text('RISK TOLERANCE', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)), const Spacer(), AnimatedContainer(duration: const Duration(milliseconds: 400), width: 12, height: 12, decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle, boxShadow: [BoxShadow(color: riskColor.withOpacity(0.3), blurRadius: 8, spreadRadius: 2)]))]), const SizedBox(height: 12), Container(padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1))), child: DropdownButton<String>(value: selectedRisk, isExpanded: true, underline: const SizedBox(), icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple), items: ['Conservative', 'Moderate', 'Aggressive'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: TextStyle(color: colors[r], fontWeight: FontWeight.w900, fontSize: 16)))).toList(), onChanged: (v) => setState(() => selectedRisk = v!))), Padding(padding: const EdgeInsets.only(left: 4, top: 8), child: Text(riskDesc, style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic, letterSpacing: 0.2)))]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.shield_rounded, size: 16, color: Colors.grey[400]), const SizedBox(width: 8), const Text('RISK TOLERANCE', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)), const Spacer(), AnimatedContainer(duration: const Duration(milliseconds: 400), width: 12, height: 12, decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle, boxShadow: [BoxShadow(color: riskColor.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 2)]))]), const SizedBox(height: 12), Container(padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))), child: DropdownButton<String>(value: selectedRisk, isExpanded: true, underline: const SizedBox(), icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple), items: ['Conservative', 'Moderate', 'Aggressive'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: TextStyle(color: colors[r], fontWeight: FontWeight.w900, fontSize: 16)))).toList(), onChanged: (v) => setState(() => selectedRisk = v!))), Padding(padding: const EdgeInsets.only(left: 4, top: 8), child: Text(riskDesc, style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic, letterSpacing: 0.2)))]);
   }
 
   Widget _buildInputField({required String label, required IconData icon, required Widget child}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(icon, size: 16, color: Colors.grey[400]), const SizedBox(width: 8), Text(label.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5))]), const SizedBox(height: 12), Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1))), child: child)]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(icon, size: 16, color: Colors.grey[400]), const SizedBox(width: 8), Text(label.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5))]), const SizedBox(height: 12), Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))), child: child)]);
   }
 
   Widget _buildActionCard() {
-    return _EntranceAnimation(delay: 400, child: GestureDetector(onTapDown: (_) => _buttonScaleController.forward(), onTapUp: (_) => _buttonScaleController.reverse(), onTapCancel: () => _buttonScaleController.reverse(), child: ScaleTransition(scale: Tween<double>(begin: 1.0, end: 0.94).animate(CurvedAnimation(parent: _buttonScaleController, curve: Curves.easeInOut)), child: Container(width: double.infinity, height: 75, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF311B92), Color(0xFF6A1B9A)], begin: Alignment.centerLeft, end: Alignment.centerRight), borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 12))]), child: ElevatedButton(onPressed: () { HapticFeedback.heavyImpact(); _runOptimization(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: Colors.white, shadowColor: Colors.transparent, padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.bolt_rounded, color: Colors.amber, size: 30), SizedBox(width: 12), Text('OPTIMIZE PORTFOLIO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 2))]))))));
+    return _EntranceAnimation(delay: 400, child: GestureDetector(onTapDown: (_) => _buttonScaleController.forward(), onTapUp: (_) => _buttonScaleController.reverse(), onTapCancel: () => _buttonScaleController.reverse(), child: ScaleTransition(scale: Tween<double>(begin: 1.0, end: 0.94).animate(CurvedAnimation(parent: _buttonScaleController, curve: Curves.easeInOut)), child: Container(width: double.infinity, height: 75, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF311B92), Color(0xFF6A1B9A)], begin: Alignment.centerLeft, end: Alignment.centerRight), borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.deepPurple.withValues(alpha: 0.4), blurRadius: 25, offset: const Offset(0, 12))]), child: ElevatedButton(onPressed: () { HapticFeedback.heavyImpact(); _runOptimization(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: Colors.white, shadowColor: Colors.transparent, padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.bolt_rounded, color: Colors.amber, size: 30), SizedBox(width: 12), Text('OPTIMIZE PORTFOLIO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 2))]))))));
   }
 
   Widget _buildBottomNav() {
-    return Container(margin: const EdgeInsets.only(left: 20, right: 20, bottom: 40), height: 85, decoration: BoxDecoration(color: const Color(0xFF0D1117), borderRadius: BorderRadius.circular(40), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 20))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: List.generate(3, (i) => _buildNavItem([Icons.auto_graph_rounded, Icons.home_filled, Icons.info_rounded][i], i))));
+    return Container(margin: const EdgeInsets.only(left: 20, right: 20, bottom: 40), height: 85, decoration: BoxDecoration(color: const Color(0xFF0D1117), borderRadius: BorderRadius.circular(40), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 20))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: List.generate(3, (i) => _buildNavItem([Icons.auto_graph_rounded, Icons.home_filled, Icons.info_rounded][i], i))));
   }
 
   Widget _buildNavItem(IconData icon, int index) {
     bool isActive = index == 1;
-    return GestureDetector(onTap: () { if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage())); HapticFeedback.selectionClick(); }, child: AnimatedContainer(duration: const Duration(milliseconds: 500), curve: Curves.elasticOut, padding: EdgeInsets.all(isActive ? 18 : 14), decoration: BoxDecoration(color: isActive ? Colors.white.withOpacity(0.12) : Colors.transparent, borderRadius: BorderRadius.circular(24)), child: Icon(icon, color: isActive ? Colors.white : Colors.white38, size: isActive ? 30 : 26)));
+    return GestureDetector(onTap: () { if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailsPage())); HapticFeedback.selectionClick(); }, child: AnimatedContainer(duration: const Duration(milliseconds: 500), curve: Curves.elasticOut, padding: EdgeInsets.all(isActive ? 18 : 14), decoration: BoxDecoration(color: isActive ? Colors.white.withValues(alpha: 0.12) : Colors.transparent, borderRadius: BorderRadius.circular(24)), child: Icon(icon, color: isActive ? Colors.white : Colors.white38, size: isActive ? 30 : 26)));
   }
 }
 
