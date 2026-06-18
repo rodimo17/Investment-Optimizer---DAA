@@ -319,15 +319,26 @@ class _HomePageState extends State<HomePage> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.deepPurple,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.indigo[900]!, Colors.deepPurple[800]!],
         ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       padding:
-          const EdgeInsets.only(top: 60, bottom: 32, left: 24, right: 24),
+          const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,14 +350,10 @@ class _HomePageState extends State<HomePage> {
                 'Investment Optimizer',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
                 ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'DAA Project · Backtracking Knapsack',
-                style: TextStyle(color: Colors.white60, fontSize: 13),
               ),
             ],
           ),
@@ -354,16 +361,22 @@ class _HomePageState extends State<HomePage> {
               ? const Padding(
                   padding: EdgeInsets.only(top: 4),
                   child: SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                     child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2),
+                        color: Colors.white, strokeWidth: 3),
                   ),
                 )
-              : IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white70),
-                  onPressed: _fetchRates,
-                  tooltip: 'Refresh rates',
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                    onPressed: _fetchRates,
+                    tooltip: 'Sync Market Data',
+                  ),
                 ),
         ],
       ),
@@ -448,9 +461,9 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildRiskSelector() {
     final colors = {
-      'Conservative': Colors.green,
-      'Moderate': Colors.orange,
-      'Aggressive': Colors.red,
+      'Conservative': const Color(0xFF059669),
+      'Moderate': Colors.amber[700]!,
+      'Aggressive': const Color(0xFFE11D48),
     };
     final color = colors[_selectedRisk]!;
     final maxRisk = OptimizerService.riskLimits[_selectedRisk] ?? 6;
@@ -464,17 +477,18 @@ class _HomePageState extends State<HomePage> {
             const Spacer(),
             Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'Max risk score: $maxRisk',
+                'MAX RISK: $maxRisk',
                 style: TextStyle(
                   color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
@@ -486,6 +500,7 @@ class _HomePageState extends State<HomePage> {
             value: _selectedRisk,
             isExpanded: true,
             underline: const SizedBox(),
+            icon: Icon(Icons.expand_more_rounded, color: const Color(0xFF94A3B8)),
             items: ['Conservative', 'Moderate', 'Aggressive']
                 .map((r) => DropdownMenuItem(
                       value: r,
@@ -494,6 +509,7 @@ class _HomePageState extends State<HomePage> {
                         style: TextStyle(
                           color: colors[r],
                           fontWeight: FontWeight.bold,
+                          fontSize: 15,
                         ),
                       ),
                     ))
@@ -708,30 +724,44 @@ class _HomePageState extends State<HomePage> {
   // ── Run button ────────────────────────────────────────────────────────────
 
   Widget _buildRunButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.indigo[800]!, Colors.indigo[600]!],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: _runOptimization,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
+          shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(vertical: 20),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15)),
-          elevation: 4,
-          shadowColor: Colors.deepPurple.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(18)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.analytics_outlined),
+            Icon(Icons.bolt_rounded, size: 22),
             SizedBox(width: 12),
             Text(
               'RUN BACKTRACKING SOLVER',
               style: TextStyle(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w900,
                 fontSize: 16,
-                letterSpacing: 1,
+                letterSpacing: 1.5,
               ),
             ),
           ],
@@ -821,12 +851,13 @@ class _HomePageState extends State<HomePage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF0F172A).withOpacity(0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -838,12 +869,23 @@ class _HomePageState extends State<HomePage> {
   Widget _cardTitle(IconData icon, String label) {
     return Row(
       children: [
-        Icon(icon, color: Colors.deepPurple, size: 20),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.indigo[50],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.indigo[700], size: 18),
+        ),
+        const SizedBox(width: 12),
         Text(
-          label,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold, fontSize: 17),
+          label.toUpperCase(),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14,
+            color: const Color(0xFF1E293B),
+            letterSpacing: 1.2,
+          ),
         ),
       ],
     );

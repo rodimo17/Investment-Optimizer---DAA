@@ -125,11 +125,15 @@ class _ResultPageState extends State<ResultPage> {
     return SliverToBoxAdapter(
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.deepPurple,
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(30),
-            bottomRight: Radius.circular(30),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.indigo[900]!, Colors.deepPurple[800]!],
+          ),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(40),
+            bottomRight: Radius.circular(40),
           ),
         ),
         padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
@@ -138,33 +142,28 @@ class _ResultPageState extends State<ResultPage> {
           children: [
             Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 20),
-                  onPressed: () => Navigator.pop(context),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
+                const SizedBox(width: 16),
                 Text(
-                  found ? 'Optimal Strategy' : 'No Result',
+                  found ? 'Strategy Found' : 'No Result',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
                   ),
                 ),
               ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 48),
-              child: Text(
-                found
-                    ? '${res.allocations.length} OPTION${res.allocations.length > 1 ? 'S' : ''} · GLOBAL OPTIMUM ACHIEVED'
-                    : 'ADJUST INPUTS AND TRY AGAIN',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  letterSpacing: 1,
-                ),
-              ),
             ),
           ],
         ),
@@ -178,56 +177,48 @@ class _ResultPageState extends State<ResultPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04), blurRadius: 16,
-              offset: const Offset(0, 6)),
+              color: const Color(0xFF0F172A).withOpacity(0.04), blurRadius: 24,
+              offset: const Offset(0, 12)),
         ],
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Profit row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Estimated Profit',
-                style: TextStyle(
-                    color: Colors.grey, fontWeight: FontWeight.w500),
-              ),
-              Text(
-                '₱${_currencyFormat.format(res.totalProfit)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 26,
-                  color: Colors.green,
+          // Profit section
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'ESTIMATED PROFIT',
+                  style: TextStyle(
+                    color: const Color(0xFF94A3B8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Committed capital row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Committed Capital',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              Text(
-                '₱${_currencyFormat.format(res.usedCapital)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.deepPurple,
+                const SizedBox(height: 4),
+                Text(
+                  '₱${_currencyFormat.format(res.totalProfit)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 40,
+                    letterSpacing: -1,
+                    color: const Color(0xFF059669),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Divider(height: 32),
+          const SizedBox(height: 24),
+          
+          _buildStatRow('Committed Capital', '₱${_currencyFormat.format(res.usedCapital)}', Colors.indigo[700]!),
+          const Divider(height: 40, thickness: 0.5),
 
           // Badges
           Wrap(
@@ -235,25 +226,37 @@ class _ResultPageState extends State<ResultPage> {
             runSpacing: 8,
             children: [
               _buildMiniBadge(
-                'Risk ${res.totalRiskScore.toStringAsFixed(0)}/${res.maxRiskLimit}',
-                Icons.shield,
-                Colors.blue,
+                'RISK ${res.totalRiskScore}/${res.maxRiskLimit}',
+                Icons.shield_rounded,
+                Colors.amber[800]!,
               ),
               if (res.etfAllocationPercent > 0)
                 _buildMiniBadge(
-                  'ETF ${res.etfAllocationPercent.toStringAsFixed(0)}%',
-                  Icons.insights,
-                  Colors.indigo,
+                  'ETF ${res.etfAllocationPercent.toStringAsFixed(1)}%',
+                  Icons.auto_graph_rounded,
+                  Colors.indigo[600]!,
                 ),
               if (res.bankAllocationPercent > 0)
                 _buildMiniBadge(
-                  'Bank ${res.bankAllocationPercent.toStringAsFixed(0)}%',
-                  Icons.account_balance,
-                  Colors.green,
+                  'BANK ${res.bankAllocationPercent.toStringAsFixed(1)}%',
+                  Icons.account_balance_rounded,
+                  const Color(0xFF059669),
                 ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+
+          // Allocation header
+          Text(
+            'TARGET ALLOCATIONS',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF94A3B8),
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // Allocation rows
           ...res.allocations.map((alloc) => _buildAllocationRow(alloc)),
@@ -261,6 +264,26 @@ class _ResultPageState extends State<ResultPage> {
           _buildDaaStatsMini(res),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: const Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
