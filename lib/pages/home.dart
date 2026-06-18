@@ -54,7 +54,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _updatePercentFields() {
     int count = int.tryParse(amountController.text) ?? 0;
     if (count < 1) count = 1;
-    if (count > 5) count = 5;
+    // Allow up to the total number of available options
+    if (count > _optimizerService.allOptions.length) {
+      count = _optimizerService.allOptions.length;
+    }
 
     if (_percentControllers.length != count) {
       setState(() {
@@ -212,6 +215,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildLiveTicker() {
+    // Get latest bank rates from service
+    final banks = _optimizerService.allOptions
+        .where((o) => o.type == InvestmentType.bank)
+        .toList();
+    banks.sort((a, b) => b.annualReturnRate.compareTo(a.annualReturnRate));
+    final topBank = banks.first;
+
     return Container(
       width: double.infinity,
       color: const Color(0xFF1A237E),
@@ -222,7 +232,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             const SizedBox(width: 24),
             if (_liveEtfs.isEmpty)
-              const Text('Connecting to live markets...', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold))
+              const Text('Connecting to live markets...', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5))
             else
               ..._liveEtfs.map((etf) => _TickerItem(
                 label: etf.ticker, 
@@ -230,8 +240,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 change: '${etf.monthlyChange >= 0 ? '+' : ''}${etf.monthlyChange.toStringAsFixed(2)}%',
                 up: etf.monthlyChange >= 0
               )),
-            const _TickerItem(label: 'MAYA', value: '10.0% APY', up: true),
-            const _TickerItem(label: 'SEABANK', value: '4.25% APY', up: false),
+            _TickerItem(
+              label: topBank.name.toUpperCase().replaceAll(' BANK', ''), 
+              value: '${(topBank.annualReturnRate * 100).toStringAsFixed(2)}% APY', 
+              up: true
+            ),
+            const _TickerItem(label: 'USD/PHP', value: '58.45', up: true),
           ],
         ),
       ),

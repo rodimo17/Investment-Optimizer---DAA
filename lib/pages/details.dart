@@ -275,8 +275,7 @@ class _DetailsPageState extends State<DetailsPage> {
           ...banks.map((bank) => _bankRow(
                 bank.name,
                 '${(bank.annualReturnRate * 100).toStringAsFixed(2)}%',
-                bank.safetyRating,
-                bank.liquidityScore,
+                bank.riskScore,
                 bank.name.contains('SeaBank') ? Icons.waves : 
                 bank.name.contains('Maya') ? Icons.account_balance_wallet_outlined :
                 Icons.account_balance_rounded,
@@ -286,9 +285,9 @@ class _DetailsPageState extends State<DetailsPage> {
     );
   }
 
-  Widget _bankRow(String name, String rate, int safety, int liquidity, IconData icon) {
-    // Calculate a visual score based on return, safety and liquidity
-    final double scoreValue = (safety + liquidity + (double.tryParse(rate.replaceAll('%', '')) ?? 0)) / 25;
+  Widget _bankRow(String name, String rate, int riskScore, IconData icon) {
+    // Math for the visual indicator: Inverse of risk (Lower risk = higher bar)
+    final double stabilityValue = (11 - riskScore) / 10;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -313,9 +312,17 @@ class _DetailsPageState extends State<DetailsPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        _buildMetric(Icons.shield_rounded, 'Safety', '$safety/10'),
+                        _buildMetric(Icons.shield_moon_rounded, 'Risk Index', '$riskScore/10'),
                         const SizedBox(width: 16),
-                        _buildMetric(Icons.speed_rounded, 'Liquid', '$liquidity/10'),
+                        Text(
+                          riskScore <= 3 ? 'CONSERVATIVE' : (riskScore <= 7 ? 'MODERATE' : 'AGGRESSIVE'),
+                          style: TextStyle(
+                            color: riskScore <= 3 ? Colors.teal : (riskScore <= 7 ? Colors.orange[800] : Colors.redAccent),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -339,14 +346,27 @@ class _DetailsPageState extends State<DetailsPage> {
             ],
           ),
           const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: scoreValue.clamp(0.0, 1.0),
-              backgroundColor: Colors.grey[100],
-              color: const Color(0xFF4A148C).withOpacity(0.6),
-              minHeight: 4,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('STABILITY RATING', style: TextStyle(color: Colors.grey[500], fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                  Text('${(stabilityValue * 100).toInt()}%', style: TextStyle(color: Colors.grey[600], fontSize: 9, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: stabilityValue.clamp(0.0, 1.0),
+                  backgroundColor: Colors.grey[100],
+                  color: riskScore <= 3 ? Colors.teal : (riskScore <= 7 ? Colors.orange : Colors.redAccent),
+                  minHeight: 4,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           const Divider(height: 1, color: Color(0xFFF5F5F5)),

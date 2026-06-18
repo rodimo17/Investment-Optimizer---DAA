@@ -2,26 +2,40 @@ enum InvestmentType { bank, etf, govt, reit }
 
 class InvestmentOption {
   final String name;
-  final double annualReturnRate; // High/Promo rate
-  final double baseReturnRate; // Rate after cap (e.g. 0.035 for Maya)
+  final double annualReturnRate; 
+  final double baseReturnRate; 
   final InvestmentType type;
   final String riskLevel;
   final double minInvestment;
   final double? interestCap;
-  final int safetyRating;
-  final int liquidityScore;
+  final int riskScore; // Unified Risk Index (1-10)
 
   InvestmentOption({
     required this.name,
     required this.annualReturnRate,
+    required this.baseRateAmount, // Keeping field name for compatibility if needed
     required this.baseReturnRate,
     required this.type,
     required this.riskLevel,
     required this.minInvestment,
     this.interestCap,
-    required this.safetyRating,
-    required this.liquidityScore,
+    required this.riskScore,
   });
+
+  // Re-constructor for easier updates
+  InvestmentOption copyWith({double? annualReturnRate}) {
+    return InvestmentOption(
+      name: name,
+      annualReturnRate: annualReturnRate ?? this.annualReturnRate,
+      baseReturnRate: baseReturnRate,
+      baseRateAmount: 0.0,
+      type: type,
+      riskLevel: riskLevel,
+      minInvestment: minInvestment,
+      interestCap: interestCap,
+      riskScore: riskScore,
+    );
+  }
 
   String get typeLabel {
     switch (type) {
@@ -32,9 +46,10 @@ class InvestmentOption {
     }
   }
 
-  /// Calculates an overall ranking score based on Return, Safety, and Liquidity
+  /// DAA Scoring Logic: Return-to-Risk Ratio
   double get overallScore {
-    // Weighted formula: 50% Return, 30% Safety, 20% Liquidity
-    return (annualReturnRate * 100 * 5.0) + (safetyRating * 3.0) + (liquidityScore * 2.0);
+    // Math: Efficiency = (Return * 100) / Risk
+    // A high ROI with low risk gives a massive efficiency score.
+    return (annualReturnRate * 100) / (riskScore > 0 ? riskScore : 1);
   }
 }

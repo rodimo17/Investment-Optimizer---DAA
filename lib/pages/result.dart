@@ -415,17 +415,23 @@ class _ResultPageState extends State<ResultPage> {
                           Row(
                             children: [
                               Icon(Icons.shield_moon_outlined, size: 12, color: Colors.grey[400]),
-                              const SizedBox(width: 4),
+                          Row(
+                            children: [
                               Text(
-                                'Safety: ${alloc.option.safetyRating}/10',
+                                'Risk Index: ${alloc.option.riskScore}/10',
                                 style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w500),
                               ),
-                              const SizedBox(width: 12),
-                              Icon(Icons.bolt_rounded, size: 12, color: Colors.amber[700]),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 8),
+                              Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[300], shape: BoxShape.circle)),
+                              const SizedBox(width: 8),
                               Text(
-                                'Score: ${alloc.option.overallScore.toStringAsFixed(0)}',
-                                style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w700),
+                                alloc.option.riskScore <= 3 ? 'LOW RISK' : (alloc.option.riskScore <= 7 ? 'MED RISK' : 'HIGH RISK'),
+                                style: TextStyle(
+                                  color: alloc.option.riskScore <= 3 ? Colors.teal : (alloc.option.riskScore <= 7 ? Colors.orange[800] : Colors.redAccent),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                               const Spacer(),
                               Text(
@@ -455,25 +461,12 @@ class _ResultPageState extends State<ResultPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.blue[100]!),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
-              const SizedBox(width: 12),
-              const Text('Search Complexity: ', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
-              Text('${res.statesExplored} iterations', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.content_cut_rounded, color: Colors.indigo, size: 18),
-              const SizedBox(width: 12),
-              const Text('Branches Pruned: ', style: TextStyle(color: Colors.indigo, fontSize: 12, fontWeight: FontWeight.w500)),
-              Text('${res.branchesPruned} paths skipped', style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ),
+          const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
+          const SizedBox(width: 12),
+          const Text('Search Complexity: ', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+          Text('${res.statesExplored} iterations', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
     );
