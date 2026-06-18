@@ -19,4 +19,24 @@ class InvestmentOption {
     required this.minInvestment,
     required this.depositAmount,
   });
+
+  InvestmentOption copyWith({
+    String? name,
+    double? annualReturnRate,
+    InvestmentType? type,
+    String? riskLevel,
+    int? riskScore,
+    double? minInvestment,
+    int? depositAmount,
+  }) {
+    return InvestmentOption(
+      name: name ?? this.name,
+      annualReturnRate: annualReturnRate ?? this.annualReturnRate,
+      type: type ?? this.type,
+      riskLevel: riskLevel ?? this.riskLevel,
+      riskScore: riskScore ?? this.riskScore,
+      minInvestment: minInvestment ?? this.minInvestment,
+      depositAmount: depositAmount ?? this.depositAmount,
+    );
+  }
 }

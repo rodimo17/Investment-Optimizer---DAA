@@ -572,10 +572,6 @@ class _ResultPageState extends State<ResultPage> {
         icon = Icons.block;
         color = Colors.grey;
         break;
-      case StepType.backtrackInfo:
-        icon = Icons.account_tree_outlined;
-        color = Colors.teal;
-        break;
     }
 
     return TweenAnimationBuilder(

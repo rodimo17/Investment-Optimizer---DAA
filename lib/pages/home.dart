@@ -18,6 +18,11 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _capitalController = TextEditingController();
   String _selectedHorizon = '1 month';
   String _selectedRisk = 'Moderate';
+
+  // ── NEW: min / max options controls ──────────────────────────────────────
+  int _minOptions = 1;
+  int _maxOptions = 9; // default: no upper cap (set to allOptions.length)
+
   bool _isUpdatingRates = false;
   bool _isCalculating = false;
 
@@ -30,6 +35,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+
+    // Default maxOptions to the total number of available options
+    _maxOptions = _optimizerService.allOptions.length;
 
     // Pre-populate deposit controllers from each option's default depositAmount
     _depositControllers = {
@@ -72,8 +80,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _fetchRates() async {
     setState(() => _isUpdatingRates = true);
-    final _etfPriceService = EtfPriceService();
-    await _etfPriceService.getMonthlyPrices();
+    final etfPriceService = EtfPriceService();
+    await etfPriceService.getMonthlyPrices();
     if (mounted) {
       setState(() => _isUpdatingRates = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,10 +100,10 @@ class _HomePageState extends State<HomePage> {
     final options = <InvestmentOption>[];
 
     for (final opt in _optimizerService.allOptions) {
-      final raw = _depositControllers[opt.name]!.text.replaceAll(',', '').trim();
+      final raw =
+          _depositControllers[opt.name]!.text.replaceAll(',', '').trim();
 
-      // Empty means the user doesn't want to include this option at all —
-      // skip it rather than error.
+      // Empty means the user doesn't want to include this option — skip it.
       if (raw.isEmpty) continue;
 
       final amount = double.tryParse(raw);
@@ -114,7 +122,8 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${opt.name} requires a minimum of ₱${_currencyFormat.format(opt.minInvestment)}.',
+              '${opt.name} requires a minimum of '
+              '₱${_currencyFormat.format(opt.minInvestment)}.',
             ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
@@ -130,7 +139,7 @@ class _HomePageState extends State<HomePage> {
         riskLevel: opt.riskLevel,
         riskScore: opt.riskScore,
         minInvestment: opt.minInvestment,
-        depositAmount: amount.toInt(), //to be fixed kasi di ko mahanap san yung amount
+        depositAmount: amount.toInt(),
       ));
     }
 
@@ -145,15 +154,16 @@ class _HomePageState extends State<HomePage> {
       return null;
     }
 
-    // Warn if total deposits exceed capital — optimizer will prune but user
-    // should know.
-    final total = options.fold<double>(0, (sum, o) => sum + o.depositAmount);
+    // Warn if total deposits exceed capital — optimizer will prune but the
+    // user should know.
+    final total =
+        options.fold<double>(0, (sum, o) => sum + o.depositAmount);
     if (total > capital) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Total deposits (₱${_currencyFormat.format(total)}) exceed your capital. '
-            'The optimizer will find the best subset that fits.',
+            'Total deposits (₱${_currencyFormat.format(total)}) exceed your '
+            'capital. The optimizer will find the best subset that fits.',
           ),
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
@@ -182,13 +192,20 @@ class _HomePageState extends State<HomePage> {
     final options = _buildOptionsWithDeposits(capital);
     if (options == null) return;
 
+    // Guard: minOptions cannot exceed the number of filled-in options.
+    final effectiveMin = _minOptions.clamp(1, options.length);
+    final effectiveMax = _maxOptions.clamp(effectiveMin, options.length);
+
     setState(() => _isCalculating = true);
     await Future.delayed(const Duration(milliseconds: 1200));
 
+    // ── FIXED: now passes the required minOptions & optional maxOptions ──
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
       riskPreference: _selectedRisk,
       horizon: _selectedHorizon,
+      minOptions: effectiveMin,       // ← was missing
+      maxOptions: effectiveMax,       // ← was missing
       customOptions: options,
     );
 
@@ -226,7 +243,8 @@ class _HomePageState extends State<HomePage> {
         children: [
           _buildHeader(),
           Expanded(
-            child: _isCalculating ? _buildShimmerLoading() : _buildContent(),
+            child:
+                _isCalculating ? _buildShimmerLoading() : _buildContent(),
           ),
         ],
       ),
@@ -242,6 +260,8 @@ class _HomePageState extends State<HomePage> {
           _buildCapitalCard(),
           const SizedBox(height: 16),
           _buildHorizonRiskCard(),
+          const SizedBox(height: 16),
+          _buildOptionsRangeCard(),      // ← NEW card
           const SizedBox(height: 16),
           _buildDepositSlotsCard(),
           const SizedBox(height: 24),
@@ -264,7 +284,8 @@ class _HomePageState extends State<HomePage> {
           bottomRight: Radius.circular(30),
         ),
       ),
-      padding: const EdgeInsets.only(top: 60, bottom: 32, left: 24, right: 24),
+      padding:
+          const EdgeInsets.only(top: 60, bottom: 32, left: 24, right: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +341,8 @@ class _HomePageState extends State<HomePage> {
             child: TextField(
               controller: _capitalController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
               decoration: const InputDecoration(
                 hintText: '0',
                 border: InputBorder.none,
@@ -369,7 +391,8 @@ class _HomePageState extends State<HomePage> {
               isExpanded: true,
               underline: const SizedBox(),
               items: ['1 month', '3 months', '6 months', '1 year']
-                  .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                  .map((h) =>
+                      DropdownMenuItem(value: h, child: Text(h)))
                   .toList(),
               onChanged: (v) => setState(() => _selectedHorizon = v!),
             ),
@@ -398,7 +421,8 @@ class _HomePageState extends State<HomePage> {
             _fieldLabel(Icons.shield_outlined, 'Risk Tolerance'),
             const Spacer(),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
@@ -436,6 +460,94 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Min / Max options card ────────────────────────────────────────────────
+
+  /// Lets the user control the minOptions / maxOptions passed to solveKnapsack.
+  Widget _buildOptionsRangeCard() {
+    final total = _optimizerService.allOptions.length;
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(Icons.format_list_numbered_outlined, 'Portfolio Size'),
+          const SizedBox(height: 4),
+          Text(
+            'Set how many assets the optimizer must include at minimum, '
+            'and the maximum it may pick.',
+            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          ),
+          const SizedBox(height: 20),
+
+          // Min options stepper
+          _fieldLabel(Icons.arrow_downward, 'Minimum assets'),
+          const SizedBox(height: 8),
+          _stepperRow(
+            value: _minOptions,
+            min: 1,
+            max: _maxOptions,
+            onDecrement: () => setState(() => _minOptions--),
+            onIncrement: () => setState(() {
+              _minOptions++;
+              if (_minOptions > _maxOptions) _maxOptions = _minOptions;
+            }),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Max options stepper
+          _fieldLabel(Icons.arrow_upward, 'Maximum assets'),
+          const SizedBox(height: 8),
+          _stepperRow(
+            value: _maxOptions,
+            min: _minOptions,
+            max: total,
+            onDecrement: () => setState(() {
+              _maxOptions--;
+              if (_maxOptions < _minOptions) _minOptions = _maxOptions;
+            }),
+            onIncrement: () => setState(() => _maxOptions++),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepperRow({
+    required int value,
+    required int min,
+    required int max,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    return _fieldBox(
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove),
+            onPressed: value > min ? onDecrement : null,
+            color: Colors.deepPurple,
+            iconSize: 20,
+          ),
+          Expanded(
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: value < max ? onIncrement : null,
+            color: Colors.deepPurple,
+            iconSize: 20,
+          ),
+        ],
+      ),
     );
   }
 
@@ -510,7 +622,8 @@ class _HomePageState extends State<HomePage> {
                 Text(
                   '${(opt.annualReturnRate * 100).toStringAsFixed(2)}% p.a. · '
                   'min ₱${_currencyFormat.format(opt.minInvestment)}',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                  style:
+                      TextStyle(color: Colors.grey[500], fontSize: 11),
                 ),
               ],
             ),
@@ -520,7 +633,8 @@ class _HomePageState extends State<HomePage> {
           SizedBox(
             width: 110,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 borderRadius: BorderRadius.circular(10),
@@ -560,8 +674,8 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 20),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15)),
           elevation: 4,
           shadowColor: Colors.deepPurple.withOpacity(0.3),
         ),
@@ -629,7 +743,8 @@ class _HomePageState extends State<HomePage> {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.08), blurRadius: 10),
         ],
       ),
       child: BottomNavigationBar(
@@ -685,7 +800,8 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+          style: const TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 17),
         ),
       ],
     );
@@ -693,7 +809,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _fieldBox({required Widget child}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
