@@ -22,7 +22,6 @@ class _ResultPageState extends State<ResultPage> {
   @override
   void initState() {
     super.initState();
-    // Start animation delay for the "visualization" feel
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) setState(() => _showSteps = true);
     });
@@ -412,9 +411,6 @@ class _ResultPageState extends State<ResultPage> {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.shield_moon_outlined, size: 12, color: Colors.grey[400]),
                           Row(
                             children: [
                               Text(

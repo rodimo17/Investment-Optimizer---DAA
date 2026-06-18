@@ -4,16 +4,17 @@ class InvestmentOption {
   final String name;
   final double annualReturnRate; 
   final double baseReturnRate; 
+  final double baseRateAmount; 
   final InvestmentType type;
   final String riskLevel;
   final double minInvestment;
   final double? interestCap;
-  final int riskScore; // Unified Risk Index (1-10)
+  final int riskScore;
 
   InvestmentOption({
     required this.name,
     required this.annualReturnRate,
-    required this.baseRateAmount, // Keeping field name for compatibility if needed
+    required this.baseRateAmount,
     required this.baseReturnRate,
     required this.type,
     required this.riskLevel,
@@ -22,13 +23,12 @@ class InvestmentOption {
     required this.riskScore,
   });
 
-  // Re-constructor for easier updates
   InvestmentOption copyWith({double? annualReturnRate}) {
     return InvestmentOption(
       name: name,
       annualReturnRate: annualReturnRate ?? this.annualReturnRate,
       baseReturnRate: baseReturnRate,
-      baseRateAmount: 0.0,
+      baseRateAmount: baseRateAmount,
       type: type,
       riskLevel: riskLevel,
       minInvestment: minInvestment,
@@ -46,10 +46,7 @@ class InvestmentOption {
     }
   }
 
-  /// DAA Scoring Logic: Return-to-Risk Ratio
   double get overallScore {
-    // Math: Efficiency = (Return * 100) / Risk
-    // A high ROI with low risk gives a massive efficiency score.
     return (annualReturnRate * 100) / (riskScore > 0 ? riskScore : 1);
   }
 }

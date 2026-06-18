@@ -8,6 +8,7 @@ import 'details.dart';
 import 'result.dart';
 import '../services/optimizer_service.dart';
 import '../services/etf_price_service.dart';
+import '../models/investment_option.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -54,7 +55,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _updatePercentFields() {
     int count = int.tryParse(amountController.text) ?? 0;
     if (count < 1) count = 1;
-    // Allow up to the total number of available options
     if (count > _optimizerService.allOptions.length) {
       count = _optimizerService.allOptions.length;
     }
@@ -67,7 +67,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         while (_percentControllers.length > count) {
           _percentControllers.removeLast().dispose();
         }
-        // Auto-distribute equally as a starting point
         int equal = 100 ~/ count;
         for (int i = 0; i < count; i++) {
           _percentControllers[i].text = (i == count - 1 ? 100 - (equal * (count - 1)) : equal).toString();
@@ -115,7 +114,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     double capital = _currentCapital;
     int maxOptions = int.tryParse(amountController.text) ?? 2;
     
-    // Validate percentages
     double totalPercent = 0;
     List<double> splits = [];
     for (var c in _percentControllers) {
@@ -215,7 +213,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildLiveTicker() {
-    // Get latest bank rates from service
     final banks = _optimizerService.allOptions
         .where((o) => o.type == InvestmentType.bank)
         .toList();
@@ -366,35 +363,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 const SizedBox(height: 28),
                 _buildRiskField(),
                 const SizedBox(height: 28),
-                _buildInputField(label: 'Number of Assets', icon: Icons.hub_rounded, child: TextField(controller: amountController, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5), decoration: const InputDecoration(hintText: '1-5', border: InputBorder.none, isDense: true, suffixText: 'ASSETS', suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1.5)))),
+                _buildInputField(label: 'Number of Assets', icon: Icons.hub_rounded, child: TextField(controller: amountController, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5), decoration: const InputDecoration(hintText: '1-9', border: InputBorder.none, isDense: true, suffixText: 'ASSETS', suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: Colors.grey, letterSpacing: 1.5)))),
                 const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('PORTFOLIO SPLIT (%)', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                    _buildSplitStatus(),
-                  ],
-                ),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('PORTFOLIO SPLIT (%)', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)), _buildSplitStatus()]),
                 const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildPresetButton('Equal', 0),
-                      const SizedBox(width: 8),
-                      _buildPresetButton('Aggressive', 1),
-                      const SizedBox(width: 8),
-                      _buildPresetButton('Balanced', 2),
-                    ],
-                  ),
-                ),
+                SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [_buildPresetButton('Equal', 0), const SizedBox(width: 8), _buildPresetButton('Aggressive', 1), const SizedBox(width: 8), _buildPresetButton('Balanced', 2)])),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 12, runSpacing: 12,
                   children: List.generate(_percentControllers.length, (i) => Container(
                     width: 70,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.grey.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.deepPurple.withOpacity(0.1))),
+                    decoration: BoxDecoration(color: Colors.grey.withOpacity(0.03), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.withOpacity(0.1))),
                     child: TextField(
                       controller: _percentControllers[i],
                       keyboardType: TextInputType.number,
@@ -404,10 +384,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       decoration: InputDecoration(hintText: '0', border: InputBorder.none, isDense: true, prefixText: 'A${i+1}: ', prefixStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   )),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text('Note: Highest % goes to best ranked asset', style: TextStyle(color: Colors.grey[500], fontSize: 10, fontStyle: FontStyle.italic)),
                 ),
               ],
             ),
@@ -422,14 +398,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     bool isValid = total == 100;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isValid ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        '${total.toStringAsFixed(0)}%',
-        style: TextStyle(color: isValid ? Colors.green[700] : Colors.red[700], fontSize: 10, fontWeight: FontWeight.w900),
-      ),
+      decoration: BoxDecoration(color: isValid ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+      child: Text('${total.toStringAsFixed(0)}%', style: TextStyle(color: isValid ? Colors.green[700] : Colors.red[700], fontSize: 10, fontWeight: FontWeight.w900)),
     );
   }
 
@@ -438,47 +408,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onTap: () {
         int count = _percentControllers.length;
         if (count == 0) return;
-        
         setState(() {
-          if (type == 0) { // Equal
+          if (type == 0) {
             int equal = 100 ~/ count;
-            for (int i = 0; i < count; i++) {
-              _percentControllers[i].text = (i == count - 1 ? 100 - (equal * (count - 1)) : equal).toString();
-            }
-          } else if (type == 1) { // Aggressive
+            for (int i = 0; i < count; i++) { _percentControllers[i].text = (i == count - 1 ? 100 - (equal * (count - 1)) : equal).toString(); }
+          } else if (type == 1) {
             _percentControllers[0].text = '70';
-            if (count > 1) {
-              int rest = 30 ~/ (count - 1);
-              for (int i = 1; i < count; i++) {
-                _percentControllers[i].text = (i == count - 1 ? 30 - (rest * (count - 2)) : rest).toString();
-              }
-            }
-          } else { // Balanced
+            if (count > 1) { int rest = 30 ~/ (count - 1); for (int i = 1; i < count; i++) { _percentControllers[i].text = (i == count - 1 ? 30 - (rest * (count - 2)) : rest).toString(); } }
+          } else {
             if (count == 1) _percentControllers[0].text = '100';
             else if (count == 2) { _percentControllers[0].text = '60'; _percentControllers[1].text = '40'; }
-            else {
-              _percentControllers[0].text = '50';
-              _percentControllers[1].text = '30';
-              if (count > 2) {
-                int rest = 20 ~/ (count - 2);
-                for (int i = 2; i < count; i++) {
-                  _percentControllers[i].text = (i == count - 1 ? 20 - (rest * (count - 3)) : rest).toString();
-                }
-              }
-            }
+            else { _percentControllers[0].text = '50'; _percentControllers[1].text = '30'; if (count > 2) { int rest = 20 ~/ (count - 2); for (int i = 2; i < count; i++) { _percentControllers[i].text = (i == count - 1 ? 20 - (rest * (count - 3)) : rest).toString(); } } }
           }
         });
         HapticFeedback.lightImpact();
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.deepPurple.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.deepPurple.withOpacity(0.1)),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
-      ),
+      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.withOpacity(0.1))), child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple))),
     );
   }
 
