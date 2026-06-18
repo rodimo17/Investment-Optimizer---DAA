@@ -27,7 +27,7 @@ class _HomePageState extends State<HomePage> {
   bool _isCalculating = false;
 
   final OptimizerService _optimizerService = OptimizerService();
-  final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
+  final NumberFormat _currencyFormat = NumberFormat("#,##0.00", "en_US");
 
   // One controller per option, keyed by option name
   late Map<String, TextEditingController> _depositControllers;
@@ -50,6 +50,9 @@ class _HomePageState extends State<HomePage> {
     };
 
     _capitalController.addListener(_formatCapital);
+    for (final c in _depositControllers.values) {
+      c.addListener(() => _formatController(c));
+    }
     _fetchRates();
   }
 
@@ -58,35 +61,74 @@ class _HomePageState extends State<HomePage> {
     _capitalController.removeListener(_formatCapital);
     _capitalController.dispose();
     for (final c in _depositControllers.values) {
+      // Note: removing listener for individual controllers is good practice
+      // but if we dispose them immediately it's usually fine.
       c.dispose();
     }
     super.dispose();
   }
 
-  void _formatCapital() {
-    final raw = _capitalController.text.replaceAll(',', '');
-    if (raw.isEmpty) return;
-    _capitalController.removeListener(_formatCapital);
-    final value = double.tryParse(raw);
+  void _formatCapital() => _formatController(_capitalController);
+
+  void _formatController(TextEditingController controller) {
+    String text = controller.text.replaceAll(',', '');
+    if (text.isEmpty) return;
+
+    // Prevent double listeners during modification
+    controller.removeListener(() => _formatController(controller));
+
+    // Support typing decimal point
+    if (text.endsWith('.')) {
+      controller.addListener(() => _formatController(controller));
+      return;
+    }
+
+    final value = double.tryParse(text);
     if (value != null) {
-      final formatted = _currencyFormat.format(value);
-      _capitalController.value = TextEditingValue(
+      // Custom formatting to preserve cents while typing
+      String formatted;
+      if (text.contains('.')) {
+        List<String> parts = text.split('.');
+        String whole = _currencyFormat.format(double.parse(parts[0])).split('.')[0];
+        String decimal = parts[1];
+        if (decimal.length > 2) decimal = decimal.substring(0, 2);
+        formatted = '$whole.$decimal';
+      } else {
+        formatted = _currencyFormat.format(value).split('.')[0];
+      }
+
+      // Preserve cursor position
+      int oldOffset = controller.selection.baseOffset;
+      int oldLen = controller.text.length;
+
+      controller.value = TextEditingValue(
         text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
+        selection: TextSelection.collapsed(
+          offset: (oldOffset + (formatted.length - oldLen)).clamp(0, formatted.length),
+        ),
       );
     }
-    _capitalController.addListener(_formatCapital);
+    controller.addListener(() => _formatController(controller));
   }
 
   Future<void> _fetchRates() async {
     setState(() => _isUpdatingRates = true);
     final etfPriceService = EtfPriceService();
-    await etfPriceService.getMonthlyPrices();
+    final results = await etfPriceService.getMonthlyPrices();
+    
+    // Update the optimizer service with fresh data
+    _optimizerService.updateEtfRates(results);
+
     if (mounted) {
-      setState(() => _isUpdatingRates = false);
+      setState(() {
+        _isUpdatingRates = false;
+        // Refresh controllers with new rates/defaults if needed, 
+        // but typically we just want the solver to have it.
+        // We could also re-generate default deposits here if capital is set.
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Rates refreshed.'),
+          content: Text('Rates refreshed and synced with Optimizer.'),
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -139,7 +181,7 @@ class _HomePageState extends State<HomePage> {
         riskLevel: opt.riskLevel,
         riskScore: opt.riskScore,
         minInvestment: opt.minInvestment,
-        depositAmount: amount.toInt(),
+        depositAmount: amount,
       ));
     }
 
@@ -225,7 +267,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _quickSet(double amount) {
-    final formatted = _currencyFormat.format(amount.toInt());
+    final formatted = _currencyFormat.format(amount).split('.')[0];
     _capitalController.removeListener(_formatCapital);
     _capitalController.value = TextEditingValue(
       text: formatted,

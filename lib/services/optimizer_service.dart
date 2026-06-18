@@ -23,7 +23,7 @@ class TraceStep {
 
 class Allocation {
   final InvestmentOption option;
-  final int amount;
+  final double amount;
   final double profit;
   final int rank;
 
@@ -74,7 +74,7 @@ class OptimizerService {
     'Aggressive': 10,
   };
 
-  final List<InvestmentOption> allOptions = [
+  List<InvestmentOption> allOptions = [
     InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.10, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 100, depositAmount: 0),
     InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
     InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
@@ -85,6 +85,20 @@ class OptimizerService {
     InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 2, minInvestment: 2500, depositAmount: 0),
     InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', riskScore: 8, minInvestment: 5000, depositAmount: 0),
   ];
+
+  /// Updates the return rates for ETF options based on fresh market data.
+  void updateEtfRates(List<dynamic> freshData) {
+    for (var data in freshData) {
+      final index = allOptions.indexWhere((opt) => opt.name.contains(data.ticker));
+      if (index != -1) {
+        // We use monthly change as a proxy for annual rate in this demo logic,
+        // or a more complex mapping if needed. For now, let's just update it.
+        // Assuming data.monthlyChange is in percent (e.g. 1.5 for 1.5%)
+        final newRate = data.monthlyChange / 100 * 12; // Annualized
+        allOptions[index] = allOptions[index].copyWith(annualReturnRate: newRate);
+      }
+    }
+  }
 
   double _maxProfit = -1.0;
   List<Allocation> _bestAllocations = [];
@@ -105,7 +119,7 @@ class OptimizerService {
   }) {
     if (options.isEmpty) return options;
     final n = targetCount.clamp(1, options.length);
-    final int defaultAmount = (capacity / n).toInt();
+    final double defaultAmount = capacity / n;
     return options.map((o) => o.copyWith(depositAmount: defaultAmount)).toList();
   }
 

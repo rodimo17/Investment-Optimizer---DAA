@@ -7,7 +7,7 @@ class InvestmentOption {
   final String riskLevel;
   final int riskScore;
   final double minInvestment;
-  final int depositAmount;
+  final double depositAmount;
 
 
   InvestmentOption({
@@ -27,7 +27,7 @@ class InvestmentOption {
     String? riskLevel,
     int? riskScore,
     double? minInvestment,
-    int? depositAmount,
+    double? depositAmount,
   }) {
     return InvestmentOption(
       name: name ?? this.name,

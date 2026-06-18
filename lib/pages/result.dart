@@ -15,7 +15,7 @@ class ResultPage extends StatefulWidget {
 }
 
 class _ResultPageState extends State<ResultPage> {
-  final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
+  final NumberFormat _currencyFormat = NumberFormat("#,##0.00", "en_US");
   bool _showSteps = false;
 
   late Future<List<EtfPriceData>> _etfPricesFuture;
