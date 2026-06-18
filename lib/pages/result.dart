@@ -37,10 +37,36 @@ class _ResultPageState extends State<ResultPage> {
       bottomNavigationBar: _buildBottomNav(context),
       body: CustomScrollView(
         slivers: [
-          _buildSliverHeader(),
+          _buildSliverHeader(res),
           if (res == null || res.allocations.isEmpty)
             const SliverFillRemaining(
-              child: Center(child: Text('No valid combinations found.')),
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.search_off, size: 48, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'No valid combinations found.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Try increasing your capital, adjusting your risk tolerance, '
+                        'or lowering some deposit amounts.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             )
           else ...[
             SliverPadding(
@@ -74,16 +100,16 @@ class _ResultPageState extends State<ResultPage> {
             if (_showSteps)
               SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final step = res.steps[index];
-                    return _buildStepItem(step, index);
-                  },
+                  (context, index) => _buildStepItem(res.steps[index], index),
                   childCount: res.steps.length,
                 ),
               )
             else
               const SliverToBoxAdapter(
-                child: Center(child: CircularProgressIndicator()),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
@@ -92,7 +118,10 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  Widget _buildSliverHeader() {
+  // ── Sliver header ─────────────────────────────────────────────────────────
+
+  Widget _buildSliverHeader(OptimizationResult? res) {
+    final found = res != null && res.allocations.isNotEmpty;
     return SliverToBoxAdapter(
       child: Container(
         width: double.infinity,
@@ -110,12 +139,13 @@ class _ResultPageState extends State<ResultPage> {
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.arrow_back_ios,
+                      color: Colors.white, size: 20),
                   onPressed: () => Navigator.pop(context),
                 ),
-                const Text(
-                  'Strategy Found',
-                  style: TextStyle(
+                Text(
+                  found ? 'Optimal Strategy' : 'No Result',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
@@ -123,11 +153,13 @@ class _ResultPageState extends State<ResultPage> {
                 ),
               ],
             ),
-            const Padding(
-              padding: EdgeInsets.only(left: 48),
+            Padding(
+              padding: const EdgeInsets.only(left: 48),
               child: Text(
-                'GLOBAL OPTIMUM ACHIEVED',
-                style: TextStyle(
+                found
+                    ? '${res.allocations.length} OPTION${res.allocations.length > 1 ? 'S' : ''} · GLOBAL OPTIMUM ACHIEVED'
+                    : 'ADJUST INPUTS AND TRY AGAIN',
+                style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
                   letterSpacing: 1,
@@ -140,25 +172,31 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
+  // ── Main stats card ───────────────────────────────────────────────────────
+
   Widget _buildMainStatsCard(OptimizationResult res) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04), blurRadius: 16,
+              offset: const Offset(0, 6)),
         ],
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Profit row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'Estimated Profit',
-                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: Colors.grey, fontWeight: FontWeight.w500),
               ),
               Text(
                 '₱${_currencyFormat.format(res.totalProfit)}',
@@ -170,119 +208,159 @@ class _ResultPageState extends State<ResultPage> {
               ),
             ],
           ),
-          const Divider(height: 32),
+          const SizedBox(height: 8),
+          // Committed capital row
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Committed Capital',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              Text(
+                '₱${_currencyFormat.format(res.usedCapital)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.deepPurple,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+
+          // Badges
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _buildMiniBadge(
                 'Risk ${res.totalRiskScore.toStringAsFixed(0)}/${res.maxRiskLimit}',
                 Icons.shield,
                 Colors.blue,
               ),
-              const SizedBox(width: 10),
-              _buildMiniBadge(
-                'ETF ${res.etfAllocationPercent.toStringAsFixed(0)}%',
-                Icons.pie_chart,
-                Colors.indigo,
-              ),
-              const SizedBox(width: 10),
-              _buildMiniBadge(
-                'Bank ${res.bankAllocationPercent.toStringAsFixed(0)}%',
-                Icons.account_balance,
-                Colors.green,
-              ),
+              if (res.etfAllocationPercent > 0)
+                _buildMiniBadge(
+                  'ETF ${res.etfAllocationPercent.toStringAsFixed(0)}%',
+                  Icons.insights,
+                  Colors.indigo,
+                ),
+              if (res.bankAllocationPercent > 0)
+                _buildMiniBadge(
+                  'Bank ${res.bankAllocationPercent.toStringAsFixed(0)}%',
+                  Icons.account_balance,
+                  Colors.green,
+                ),
             ],
           ),
-          const SizedBox(height: 16),
-          ...res.allocations.map((alloc) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
+          const SizedBox(height: 20),
+
+          // Allocation rows
+          ...res.allocations.map((alloc) => _buildAllocationRow(alloc)),
+          const SizedBox(height: 12),
+          _buildDaaStatsMini(res),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllocationRow(Allocation alloc) {
+    final isEtf = alloc.option.type == InvestmentType.etf;
+    final accentColor = isEtf ? Colors.indigo : Colors.deepPurple;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          // Type icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isEtf ? Icons.insights : Icons.account_balance,
+              size: 20,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Name + details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
+                    // Rank badge
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(10),
+                        color: accentColor,
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Icon(
-                        alloc.option.type == InvestmentType.bank
-                            ? Icons.account_balance
-                            : Icons.insights,
-                        size: 20,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurple,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '#${alloc.rank}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                alloc.option.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[50],
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '${(alloc.option.annualReturnRate * 100).toStringAsFixed(1)}% p.a.',
-                                  style: TextStyle(
-                                    color: Colors.green[700],
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '₱${_currencyFormat.format(alloc.amount)} allocated',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        '#${alloc.rank}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    Text(
-                      '+₱${_currencyFormat.format(alloc.profit)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                        fontSize: 13,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        alloc.option.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Rate badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${(alloc.option.annualReturnRate * 100).toStringAsFixed(2)}% p.a.',
+                        style: TextStyle(
+                          color: Colors.green[700],
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              )),
-          const SizedBox(height: 12),
-          _buildDaaStatsMini(res),
+                const SizedBox(height: 4),
+                // Committed amount — framed as user's commitment, not algo output
+                Text(
+                  '₱${_currencyFormat.format(alloc.amount)} committed',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Profit
+          Text(
+            '+₱${_currencyFormat.format(alloc.profit)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );
@@ -296,6 +374,7 @@ class _ResultPageState extends State<ResultPage> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
@@ -324,7 +403,7 @@ class _ResultPageState extends State<ResultPage> {
           const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
           const SizedBox(width: 12),
           const Text(
-            'Search Complexity: ',
+            'States explored: ',
             style: TextStyle(
               color: Colors.blue,
               fontSize: 12,
@@ -343,6 +422,8 @@ class _ResultPageState extends State<ResultPage> {
       ),
     );
   }
+
+  // ── ETF pulse card ────────────────────────────────────────────────────────
 
   Widget _buildEtfPulseCard() {
     return Container(
@@ -367,13 +448,14 @@ class _ResultPageState extends State<ResultPage> {
               SizedBox(width: 8),
               Text(
                 'ETF Market Pulse',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            'Live ETF trend data from the ETF price service.',
+            'Live ETF trend data for reference.',
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 16),
@@ -472,6 +554,8 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
+  // ── Backtracking trace steps ───────────────────────────────────────────────
+
   Widget _buildStepItem(TraceStep step, int index) {
     IconData icon;
     Color color;
@@ -521,10 +605,13 @@ class _ResultPageState extends State<ResultPage> {
             step.description,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
-          subtitle: Text(step.title, style: const TextStyle(fontSize: 10)),
+          subtitle: Text(
+            step.title,
+            style: const TextStyle(fontSize: 10),
+          ),
           trailing: step.profit != null
               ? Text(
-                  '+₱${step.profit!.toStringAsFixed(0)}',
+                  '+₱${_currencyFormat.format(step.profit!)}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
@@ -537,11 +624,14 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
+  // ── Bottom nav ────────────────────────────────────────────────────────────
+
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: BottomNavigationBar(
@@ -551,11 +641,15 @@ class _ResultPageState extends State<ResultPage> {
         currentIndex: 0,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 1) Navigator.of(context).popUntil((route) => route.isFirst);
-          if (index == 2) Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DetailsPage()),
-          );
+          if (index == 1) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DetailsPage()),
+            );
+          }
         },
         items: const [
           BottomNavigationBarItem(

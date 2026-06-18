@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import '../models/investment_option.dart';
 
 enum StepType { evaluated, pruned, bestFound, backtrackInfo }
@@ -18,7 +20,7 @@ class TraceStep {
 
 class Allocation {
   final InvestmentOption option;
-  final double amount;
+  final int amount;
   final double profit;
   final int rank;
 
@@ -54,27 +56,6 @@ class OptimizationResult {
   });
 }
 
-class _CategoryAllocationResult {
-  final bool valid;
-  final double usedBudget;
-  final double totalProfit;
-  final List<Allocation> allocations;
-
-  _CategoryAllocationResult({
-    required this.valid,
-    required this.usedBudget,
-    required this.totalProfit,
-    required this.allocations,
-  });
-}
-
-class _TempAllocation {
-  final InvestmentOption option;
-  double amount;
-
-  _TempAllocation({required this.option, required this.amount});
-}
-
 class OptimizerService {
   static const Map<String, int> riskLimits = {
     'Conservative': 3,
@@ -82,10 +63,9 @@ class OptimizerService {
     'Aggressive': 10,
   };
 
-  Future<void> fetchLatestRates() async {
-  await Future.delayed(const Duration(milliseconds: 1000));
-}
-
+  // Default options with preset deposit amounts.
+  // depositAmount is the fixed amount the user commits to this option.
+  // This replaces minInvestment as the weight in the knapsack.
   final List<InvestmentOption> allOptions = [
     InvestmentOption(
       name: 'Maya Bank',
@@ -94,6 +74,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 100,
+      depositAmount: 20000,
     ),
     InvestmentOption(
       name: 'SeaBank',
@@ -102,6 +83,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 1,
+      depositAmount: 5000,
     ),
     InvestmentOption(
       name: 'UNO Digital',
@@ -110,6 +92,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 1,
+      depositAmount: 5000,
     ),
     InvestmentOption(
       name: 'GoTyme Bank',
@@ -118,6 +101,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 500,
+      depositAmount: 10000,
     ),
     InvestmentOption(
       name: 'Tonik Bank',
@@ -126,6 +110,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 500,
+      depositAmount: 8000,
     ),
     InvestmentOption(
       name: 'CIMB Bank',
@@ -134,6 +119,7 @@ class OptimizerService {
       riskLevel: 'Conservative',
       riskScore: 1,
       minInvestment: 50,
+      depositAmount: 3000,
     ),
     InvestmentOption(
       name: 'VOO ETF',
@@ -142,6 +128,7 @@ class OptimizerService {
       riskLevel: 'Moderate',
       riskScore: 5,
       minInvestment: 2500,
+      depositAmount: 15000,
     ),
     InvestmentOption(
       name: 'VTI ETF',
@@ -150,6 +137,7 @@ class OptimizerService {
       riskLevel: 'Moderate',
       riskScore: 2,
       minInvestment: 2500,
+      depositAmount: 10000,
     ),
     InvestmentOption(
       name: 'QQQ ETF',
@@ -158,6 +146,7 @@ class OptimizerService {
       riskLevel: 'Aggressive',
       riskScore: 8,
       minInvestment: 5000,
+      depositAmount: 20000,
     ),
   ];
 
@@ -170,11 +159,25 @@ class OptimizerService {
   double _bestBankPercent = 0;
   int _bestRiskScore = 0;
 
+  /// Solves the 0/1 knapsack problem using backtracking.
+  ///
+  /// Each option has a fixed [depositAmount] declared by the user.
+  /// The algorithm decides which SUBSET of options to include such that:
+  ///   - Total deposit amounts do not exceed [capacity]
+  ///   - Total risk score does not exceed the limit for [riskPreference]
+  ///   - Total profit (annualReturnRate × depositAmount × timeFactor) is maximized
+  ///
+  /// No greedy allocation step exists — amounts are fixed, making this
+  /// a pure 0/1 knapsack solved by backtracking with pruning.
+  ///
+  /// [customOptions] — when provided (from home.dart's deposit text fields),
+  /// these replace [allOptions] as the candidate set. Each option already has
+  /// the user's deposit amount baked in, so the optimizer uses them directly.
   OptimizationResult solveKnapsack({
     required double capacity,
     required String riskPreference,
     required String horizon,
-    required double etfAllocationCapPercent,
+    List<InvestmentOption>? customOptions,
   }) {
     _maxProfit = -1.0;
     _bestAllocations = [];
@@ -191,15 +194,33 @@ class OptimizerService {
     else if (horizon == '6 months') timeFactor = 6 / 12;
 
     final maxRisk = riskLimits[riskPreference] ?? 6;
-    final etfCapFraction = etfAllocationCapPercent.clamp(0, 100) / 100;
 
-    final available = allOptions.where((opt) => opt.riskScore <= maxRisk).toList();
+    // Use user-supplied options from the deposit text fields when provided,
+    // falling back to the built-in defaults otherwise.
+    final source = customOptions ?? allOptions;
 
-    _backtrack(available, 0, [], 0, capacity, timeFactor, maxRisk, etfCapFraction);
+    // Filter out options whose deposit amount alone already exceeds budget,
+    // and options whose risk score exceeds the max — no point exploring them.
+    final available = source.where((opt) =>
+        opt.riskScore <= maxRisk &&
+        opt.depositAmount <= capacity &&
+        opt.depositAmount >= opt.minInvestment,
+    ).toList();
+
+    _backtrack(
+      options: available,
+      index: 0,
+      currentSelections: [],
+      currentRisk: 0,
+      currentUsedBudget: 0,
+      capacity: capacity,
+      timeFactor: timeFactor,
+      maxRisk: maxRisk,
+    );
 
     return OptimizationResult(
       allocations: _bestAllocations,
-      totalProfit: _maxProfit,
+      totalProfit: _maxProfit < 0 ? 0 : _maxProfit,
       steps: _steps,
       statesExplored: _statesCount,
       totalRiskScore: _bestRiskScore.toDouble(),
@@ -210,105 +231,145 @@ class OptimizerService {
     );
   }
 
-  void _backtrack(
-    List<InvestmentOption> options,
-    int index,
-    List<InvestmentOption> current,
-    int currentRisk,
-    double capacity,
-    double timeFactor,
-    int maxRisk,
-    double etfCapFraction,
-  ) {
+  void _backtrack({
+    required List<InvestmentOption> options,
+    required int index,
+    required List<InvestmentOption> currentSelections,
+    required int currentRisk,
+    required double currentUsedBudget,
+    required double capacity,
+    required double timeFactor,
+    required int maxRisk,
+  }) {
     _statesCount++;
 
-    if (currentRisk > maxRisk) return;
+    // Pruning: risk already exceeded — no point going deeper
+    if (currentRisk > maxRisk) {
+      _steps.add(TraceStep(
+        type: StepType.pruned,
+        title: 'Risk Pruned',
+        description: 'Risk $currentRisk exceeds limit $maxRisk — branch cut',
+      ));
+      return;
+    }
 
+    // Pruning: budget already exceeded
+    if (currentUsedBudget > capacity) {
+      _steps.add(TraceStep(
+        type: StepType.pruned,
+        title: 'Budget Pruned',
+        description:
+            '₱${currentUsedBudget.toStringAsFixed(0)} exceeds budget ₱${capacity.toStringAsFixed(0)} — branch cut',
+      ));
+      return;
+    }
+
+    // Base case: all options have been considered
     if (index == options.length) {
-      if (current.isNotEmpty) {
-        _evaluateSelection(current, capacity, timeFactor, etfCapFraction, maxRisk);
+      if (currentSelections.isNotEmpty) {
+        _evaluateSelection(
+          selection: currentSelections,
+          usedBudget: currentUsedBudget,
+          capacity: capacity,
+          timeFactor: timeFactor,
+          currentRisk: currentRisk,
+          maxRisk: maxRisk,
+        );
       }
       return;
     }
 
-    // Include current option
-    current.add(options[index]);
-    _backtrack(options, index + 1, current,
-        currentRisk + options[index].riskScore, capacity, timeFactor, maxRisk, etfCapFraction);
+    final option = options[index];
 
-    // Backtrack
+    // === INCLUDE this option ===
+    currentSelections.add(option);
+    _backtrack(
+      options: options,
+      index: index + 1,
+      currentSelections: currentSelections,
+      currentRisk: currentRisk + option.riskScore,
+      currentUsedBudget: currentUsedBudget + option.depositAmount,
+      capacity: capacity,
+      timeFactor: timeFactor,
+      maxRisk: maxRisk,
+    );
+
+    // === BACKTRACK: remove and try without ===
     _steps.add(TraceStep(
       type: StepType.backtrackInfo,
       title: 'Backtracking',
-      description: 'Removing ${options[index].name} to explore other combinations',
+      description: 'Removing ${option.name} (₱${option.depositAmount.toStringAsFixed(0)}) to explore other combinations',
     ));
-    current.removeLast();
+    currentSelections.removeLast();
 
-    // Exclude current option
-    _backtrack(options, index + 1, current,
-        currentRisk, capacity, timeFactor, maxRisk, etfCapFraction);
+    // === EXCLUDE this option ===
+    _backtrack(
+      options: options,
+      index: index + 1,
+      currentSelections: currentSelections,
+      currentRisk: currentRisk,
+      currentUsedBudget: currentUsedBudget,
+      capacity: capacity,
+      timeFactor: timeFactor,
+      maxRisk: maxRisk,
+    );
   }
 
-  void _evaluateSelection(
-    List<InvestmentOption> selection,
-    double capacity,
-    double timeFactor,
-    double etfCapFraction,
-    int maxRisk,
-  ) {
-    final selectedRisk = selection.fold<int>(0, (sum, opt) => sum + opt.riskScore);
-    if (selectedRisk > maxRisk) {
-      _steps.add(TraceStep(
-        type: StepType.pruned,
-        title: 'Risk Limit Exceeded',
-        description: '${selection.map((e) => e.name).join(' + ')} exceeds max risk $maxRisk',
-      ));
-      return;
-    }
+  void _evaluateSelection({
+    required List<InvestmentOption> selection,
+    required double usedBudget,
+    required double capacity,
+    required double timeFactor,
+    required int currentRisk,
+    required int maxRisk,
+  }) {
+    // Compute profit for each option using its fixed deposit amount
+    final allocations = selection.map((opt) {
+      final profit = opt.depositAmount * opt.annualReturnRate * timeFactor;
+      return Allocation(
+        option: opt,
+        amount: opt.depositAmount,
+        profit: profit,
+        rank: 0,
+      );
+    }).toList();
 
-    final etfOptions = selection.where((opt) => opt.type == InvestmentType.etf).toList();
-    final bankOptions = selection.where((opt) => opt.type == InvestmentType.bank).toList();
+    final totalProfit = allocations.fold<double>(0, (sum, a) => sum + a.profit);
 
-    final etfBudget = capacity * etfCapFraction;
-    final etfResult = _allocateCategory(etfOptions, etfBudget, timeFactor);
-    final bankBudget = capacity - etfResult.usedBudget;
-    final bankResult = _allocateCategory(bankOptions, bankBudget, timeFactor);
+    // Calculate ETF vs bank split percentages
+    final etfUsed = allocations
+        .where((a) => a.option.type == InvestmentType.etf)
+        .fold<double>(0, (sum, a) => sum + a.amount);
+    final bankUsed = allocations
+        .where((a) => a.option.type == InvestmentType.bank)
+        .fold<double>(0, (sum, a) => sum + a.amount);
 
-    if (!etfResult.valid || !bankResult.valid) {
-      _steps.add(TraceStep(
-        type: StepType.pruned,
-        title: 'Insufficient Budget',
-        description: '${selection.map((e) => e.name).join(' + ')} cannot meet minimum investments',
-      ));
-      return;
-    }
-
-    final totalProfit = etfResult.totalProfit + bankResult.totalProfit;
-    final usedCapital = etfResult.usedBudget + bankResult.usedBudget;
-
-    if (usedCapital <= 0) return;
-
-    final actualEtfPercent = (etfResult.usedBudget / capacity) * 100;
-    final actualBankPercent = (bankResult.usedBudget / capacity) * 100;
-
-    final currentAllocations = [...etfResult.allocations, ...bankResult.allocations];
-    currentAllocations.sort((a, b) => b.profit.compareTo(a.profit));
-
-    bool isBetter = _bestAllocations.isEmpty ||
-        totalProfit > _maxProfit ||
-        (totalProfit == _maxProfit && usedCapital > _bestUsedCapital);
+    final etfPercent = capacity > 0 ? (etfUsed / capacity) * 100 : 0.0;
+    final bankPercent = capacity > 0 ? (bankUsed / capacity) * 100 : 0.0;
 
     _steps.add(TraceStep(
       type: StepType.evaluated,
       title: 'Evaluated',
-      description: '${selection.map((e) => e.name).join(' + ')}',
+      description:
+          '${selection.map((e) => e.name).join(' + ')} · ₱${usedBudget.toStringAsFixed(0)} used',
       profit: totalProfit,
     ));
+
+    final isBetter = _bestAllocations.isEmpty ||
+        totalProfit > _maxProfit ||
+        (totalProfit == _maxProfit && usedBudget > _bestUsedCapital);
 
     if (!isBetter) return;
 
     _maxProfit = totalProfit;
-    _bestAllocations = currentAllocations.asMap().entries.map((entry) {
+    _bestUsedCapital = usedBudget;
+    _bestEtfPercent = etfPercent.toDouble();
+    _bestBankPercent = bankPercent.toDouble();
+    _bestRiskScore = currentRisk;
+
+    // Rank by profit descending
+    allocations.sort((a, b) => b.profit.compareTo(a.profit));
+    _bestAllocations = allocations.asMap().entries.map((entry) {
       return Allocation(
         option: entry.value.option,
         amount: entry.value.amount,
@@ -316,67 +377,13 @@ class OptimizerService {
         rank: entry.key + 1,
       );
     }).toList();
-    _bestUsedCapital = usedCapital;
-    _bestEtfPercent = actualEtfPercent;
-    _bestBankPercent = actualBankPercent;
-    _bestRiskScore = selectedRisk;
 
     _steps.add(TraceStep(
       type: StepType.bestFound,
       title: 'New Best Found',
-      description: '${selection.map((e) => e.name).join(' + ')} · Risk $selectedRisk/$maxRisk',
+      description:
+          '${selection.map((e) => e.name).join(' + ')} · Profit ₱${totalProfit.toStringAsFixed(0)} · Risk $currentRisk/$maxRisk',
       profit: totalProfit,
     ));
-  }
-
-  _CategoryAllocationResult _allocateCategory(
-    List<InvestmentOption> selected,
-    double budget,
-    double timeFactor,
-  ) {
-    if (selected.isEmpty) {
-      return _CategoryAllocationResult(valid: true, usedBudget: 0, totalProfit: 0, allocations: []);
-    }
-
-    final totalMin = selected.fold<double>(0, (sum, opt) => sum + opt.minInvestment);
-    if (totalMin > budget) {
-      return _CategoryAllocationResult(valid: false, usedBudget: 0, totalProfit: 0, allocations: []);
-    }
-
-    final tempAllocations = selected
-        .map((opt) => _TempAllocation(option: opt, amount: opt.minInvestment))
-        .toList();
-    double remaining = budget - totalMin;
-
-    // Greedily allocate remaining budget to highest return option
-    while (remaining > 0) {
-      final best = tempAllocations.reduce((a, b) =>
-          a.option.annualReturnRate >= b.option.annualReturnRate ? a : b);
-      best.amount += remaining;
-      remaining = 0;
-    }
-
-    final allocations = <Allocation>[];
-    double totalProfit = 0;
-    double usedBudget = 0;
-
-    for (var alloc in tempAllocations) {
-      final profit = alloc.amount * alloc.option.annualReturnRate * timeFactor;
-      allocations.add(Allocation(
-        option: alloc.option,
-        amount: alloc.amount,
-        profit: profit,
-        rank: 0,
-      ));
-      totalProfit += profit;
-      usedBudget += alloc.amount;
-    }
-
-    return _CategoryAllocationResult(
-      valid: true,
-      usedBudget: usedBudget,
-      totalProfit: totalProfit,
-      allocations: allocations,
-    );
   }
 }

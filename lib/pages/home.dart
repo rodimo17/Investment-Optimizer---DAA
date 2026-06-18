@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'details.dart';
 import 'result.dart';
+import '../models/investment_option.dart';
 import '../services/optimizer_service.dart';
+import '../services/etf_price_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,54 +15,70 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController capitalController = TextEditingController();
-  final TextEditingController allocationCapController = TextEditingController(text: '40');
-  String selectedHorizon = '1 month';
-  String selectedRisk = 'Moderate';
+  final TextEditingController _capitalController = TextEditingController();
+  String _selectedHorizon = '1 month';
+  String _selectedRisk = 'Moderate';
   bool _isUpdatingRates = false;
   bool _isCalculating = false;
 
   final OptimizerService _optimizerService = OptimizerService();
   final NumberFormat _currencyFormat = NumberFormat("#,##0", "en_US");
 
+  // One controller per option, keyed by option name
+  late Map<String, TextEditingController> _depositControllers;
+
   @override
   void initState() {
     super.initState();
+
+    // Pre-populate deposit controllers from each option's default depositAmount
+    _depositControllers = {
+      for (final opt in _optimizerService.allOptions)
+        opt.name: TextEditingController(
+          text: opt.depositAmount > 0
+              ? _currencyFormat.format(opt.depositAmount)
+              : '',
+        ),
+    };
+
+    _capitalController.addListener(_formatCapital);
     _fetchRates();
-    capitalController.addListener(_formatCurrency);
   }
 
   @override
   void dispose() {
-    capitalController.removeListener(_formatCurrency);
-    capitalController.dispose();
-    allocationCapController.dispose();
+    _capitalController.removeListener(_formatCapital);
+    _capitalController.dispose();
+    for (final c in _depositControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _formatCurrency() {
-    String text = capitalController.text.replaceAll(',', '');
-    if (text.isEmpty) return;
-    capitalController.removeListener(_formatCurrency);
-    double? value = double.tryParse(text);
+  void _formatCapital() {
+    final raw = _capitalController.text.replaceAll(',', '');
+    if (raw.isEmpty) return;
+    _capitalController.removeListener(_formatCapital);
+    final value = double.tryParse(raw);
     if (value != null) {
-      String formatted = _currencyFormat.format(value);
-      capitalController.value = TextEditingValue(
+      final formatted = _currencyFormat.format(value);
+      _capitalController.value = TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
-    capitalController.addListener(_formatCurrency);
+    _capitalController.addListener(_formatCapital);
   }
 
   Future<void> _fetchRates() async {
     setState(() => _isUpdatingRates = true);
-    await _optimizerService.fetchLatestRates();
+    final _etfPriceService = EtfPriceService();
+    await _etfPriceService.getMonthlyPrices();
     if (mounted) {
       setState(() => _isUpdatingRates = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bank interest rates updated in real-time!'),
+          content: Text('Rates refreshed.'),
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -68,30 +86,110 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// Builds the list of InvestmentOptions with user-supplied deposit amounts
+  /// injected. Returns null with a snackbar if any input is invalid.
+  List<InvestmentOption>? _buildOptionsWithDeposits(double capital) {
+    final options = <InvestmentOption>[];
+
+    for (final opt in _optimizerService.allOptions) {
+      final raw = _depositControllers[opt.name]!.text.replaceAll(',', '').trim();
+
+      // Empty means the user doesn't want to include this option at all —
+      // skip it rather than error.
+      if (raw.isEmpty) continue;
+
+      final amount = double.tryParse(raw);
+      if (amount == null || amount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid deposit amount for ${opt.name}.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return null;
+      }
+
+      if (amount < opt.minInvestment) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${opt.name} requires a minimum of ₱${_currencyFormat.format(opt.minInvestment)}.',
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return null;
+      }
+
+      options.add(InvestmentOption(
+        name: opt.name,
+        annualReturnRate: opt.annualReturnRate,
+        type: opt.type,
+        riskLevel: opt.riskLevel,
+        riskScore: opt.riskScore,
+        minInvestment: opt.minInvestment,
+        depositAmount: amount.toInt(), //to be fixed kasi di ko mahanap san yung amount
+      ));
+    }
+
+    if (options.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter at least one deposit amount to continue.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return null;
+    }
+
+    // Warn if total deposits exceed capital — optimizer will prune but user
+    // should know.
+    final total = options.fold<double>(0, (sum, o) => sum + o.depositAmount);
+    if (total > capital) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Total deposits (₱${_currencyFormat.format(total)}) exceed your capital. '
+            'The optimizer will find the best subset that fits.',
+          ),
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
+    return options;
+  }
+
   void _runOptimization() async {
-    String cleanText = capitalController.text.replaceAll(',', '');
-    double capital = double.tryParse(cleanText) ?? 0.0;
+    final raw = _capitalController.text.replaceAll(',', '');
+    final capital = double.tryParse(raw) ?? 0.0;
 
     if (capital <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid capital amount'),
-          behavior: SnackBarBehavior.floating,
+          content: Text('Enter a valid capital amount.'),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    setState(() => _isCalculating = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
+    final options = _buildOptionsWithDeposits(capital);
+    if (options == null) return;
 
-    final etfAllocationCapPercent = double.tryParse(allocationCapController.text) ?? 40;
+    setState(() => _isCalculating = true);
+    await Future.delayed(const Duration(milliseconds: 1200));
+
     final result = _optimizerService.solveKnapsack(
       capacity: capital,
-      riskPreference: selectedRisk,
-      horizon: selectedHorizon,
-      etfAllocationCapPercent: etfAllocationCapPercent,
+      riskPreference: _selectedRisk,
+      horizon: _selectedHorizon,
+      customOptions: options,
     );
 
     setState(() => _isCalculating = false);
@@ -100,18 +198,23 @@ class _HomePageState extends State<HomePage> {
       Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
+          pageBuilder: (_, animation, __) =>
               ResultPage(optimizationResult: result),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
         ),
       );
     }
   }
 
   void _quickSet(double amount) {
-    capitalController.text = amount.toInt().toString();
+    final formatted = _currencyFormat.format(amount.toInt());
+    _capitalController.removeListener(_formatCapital);
+    _capitalController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+    _capitalController.addListener(_formatCapital);
   }
 
   @override
@@ -136,42 +239,20 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInputCard(),
+          _buildCapitalCard(),
+          const SizedBox(height: 16),
+          _buildHorizonRiskCard(),
+          const SizedBox(height: 16),
+          _buildDepositSlotsCard(),
           const SizedBox(height: 24),
-          _buildActionCard(),
+          _buildRunButton(),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildShimmerLoading() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Shimmer.fromColors(
-        baseColor: Colors.grey[300]!,
-        highlightColor: Colors.grey[100]!,
-        child: Column(
-          children: [
-            Container(
-              height: 350,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ── Header ────────────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
     return Container(
@@ -183,93 +264,65 @@ class _HomePageState extends State<HomePage> {
           bottomRight: Radius.circular(30),
         ),
       ),
-      padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
-      child: Column(
+      padding: const EdgeInsets.only(top: 60, bottom: 32, left: 24, right: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Investment Optimizer',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'DAA Project: Backtracking Solver',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-              if (_isUpdatingRates)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white70),
-                  onPressed: _fetchRates,
+              Text(
+                'Investment Optimizer',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'DAA Project · Backtracking Knapsack',
+                style: TextStyle(color: Colors.white60, fontSize: 13),
+              ),
             ],
           ),
+          _isUpdatingRates
+              ? const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white70),
+                  onPressed: _fetchRates,
+                  tooltip: 'Refresh rates',
+                ),
         ],
       ),
     );
   }
 
-  Widget _buildInputCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
+  // ── Capital card ──────────────────────────────────────────────────────────
+
+  Widget _buildCapitalCard() {
+    return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.tune, color: Colors.deepPurple, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Configuration',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-            ],
-          ),
-          const Divider(height: 32),
-          _buildInputField(
-            label: 'Total Capital',
-            icon: Icons.account_balance_wallet_outlined,
+          _cardTitle(Icons.account_balance_wallet_outlined, 'Total Capital'),
+          const SizedBox(height: 16),
+          _fieldBox(
             child: TextField(
-              controller: capitalController,
+              controller: _capitalController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
               decoration: const InputDecoration(
-                hintText: 'e.g. 100,000',
+                hintText: '0',
                 border: InputBorder.none,
                 isDense: true,
                 prefixText: '₱ ',
@@ -279,50 +332,19 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _buildQuickSetButton('10k', 10000),
+              _quickChip('10k', 10000),
               const SizedBox(width: 8),
-              _buildQuickSetButton('50k', 50000),
+              _quickChip('50k', 50000),
               const SizedBox(width: 8),
-              _buildQuickSetButton('100k', 100000),
+              _quickChip('100k', 100000),
             ],
-          ),
-          const SizedBox(height: 24),
-          _buildInputField(
-            label: 'Time Horizon',
-            icon: Icons.calendar_today_outlined,
-            child: DropdownButton<String>(
-              value: selectedHorizon,
-              isExpanded: true,
-              underline: const SizedBox(),
-              items: ['1 month', '3 months', '6 months', '1 year']
-                  .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                  .toList(),
-              onChanged: (v) => setState(() => selectedHorizon = v!),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildRiskField(),
-          const SizedBox(height: 24),
-          _buildInputField(
-            label: 'ETF Allocation Cap',
-            icon: Icons.pie_chart_outline,
-            child: TextField(
-              controller: allocationCapController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                hintText: 'e.g. 40',
-                suffixText: '%',
-                border: InputBorder.none,
-                isDense: true,
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickSetButton(String label, double amount) {
+  Widget _quickChip(String label, double amount) {
     return ActionChip(
       label: Text(label),
       backgroundColor: Colors.grey[100],
@@ -330,52 +352,72 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRiskField() {
-    Color riskColor;
-    if (selectedRisk == 'Conservative') riskColor = Colors.green;
-    else if (selectedRisk == 'Moderate') riskColor = Colors.orange;
-    else riskColor = Colors.red;
+  // ── Horizon + Risk card ───────────────────────────────────────────────────
 
-    final int maxRisk = OptimizerService.riskLimits[selectedRisk] ?? 6;
+  Widget _buildHorizonRiskCard() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(Icons.tune, 'Strategy'),
+          const SizedBox(height: 20),
+          _fieldLabel(Icons.calendar_today_outlined, 'Time Horizon'),
+          const SizedBox(height: 8),
+          _fieldBox(
+            child: DropdownButton<String>(
+              value: _selectedHorizon,
+              isExpanded: true,
+              underline: const SizedBox(),
+              items: ['1 month', '3 months', '6 months', '1 year']
+                  .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedHorizon = v!),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildRiskSelector(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiskSelector() {
+    final colors = {
+      'Conservative': Colors.green,
+      'Moderate': Colors.orange,
+      'Aggressive': Colors.red,
+    };
+    final color = colors[_selectedRisk]!;
+    final maxRisk = OptimizerService.riskLimits[_selectedRisk] ?? 6;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.shield_outlined, size: 16, color: Colors.grey[600]),
-            const SizedBox(width: 8),
-            Text(
-              'Risk Tolerance',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _fieldLabel(Icons.shield_outlined, 'Risk Tolerance'),
             const Spacer(),
             Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Max risk score: $maxRisk',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Text(
-          'Max risk score: $maxRisk',
-          style: const TextStyle(color: Colors.grey, fontSize: 11),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
+        _fieldBox(
           child: DropdownButton<String>(
-            value: selectedRisk,
+            value: _selectedRisk,
             isExpanded: true,
             underline: const SizedBox(),
             items: ['Conservative', 'Moderate', 'Aggressive']
@@ -384,58 +426,132 @@ class _HomePageState extends State<HomePage> {
                       child: Text(
                         r,
                         style: TextStyle(
-                          color: r == 'Conservative'
-                              ? Colors.green
-                              : (r == 'Moderate' ? Colors.orange : Colors.red),
+                          color: colors[r],
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ))
                 .toList(),
-            onChanged: (v) => setState(() => selectedRisk = v!),
+            onChanged: (v) => setState(() => _selectedRisk = v!),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildInputField({
-    required String label,
-    required IconData icon,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: Colors.grey[600]),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+  // ── Deposit slots card ────────────────────────────────────────────────────
+
+  Widget _buildDepositSlotsCard() {
+    final banks = _optimizerService.allOptions
+        .where((o) => o.type == InvestmentType.bank)
+        .toList();
+    final etfs = _optimizerService.allOptions
+        .where((o) => o.type == InvestmentType.etf)
+        .toList();
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(Icons.savings_outlined, 'Deposit Slots'),
+          const SizedBox(height: 4),
+          Text(
+            'Set how much you want to commit to each option. '
+            'Leave blank to exclude it from the search.',
+            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          ),
+          const SizedBox(height: 20),
+          _sectionLabel('BANK ACCOUNTS'),
+          const SizedBox(height: 12),
+          ...banks.map((opt) => _depositRow(opt)),
+          const SizedBox(height: 20),
+          _sectionLabel('ETF'),
+          const SizedBox(height: 12),
+          ...etfs.map((opt) => _depositRow(opt)),
+        ],
+      ),
+    );
+  }
+
+  Widget _depositRow(InvestmentOption opt) {
+    final isEtf = opt.type == InvestmentType.etf;
+    final accentColor = isEtf ? Colors.indigo : Colors.deepPurple;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Icon + name
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isEtf ? Icons.insights : Icons.account_balance,
+              size: 18,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  opt.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  '${(opt.annualReturnRate * 100).toStringAsFixed(2)}% p.a. · '
+                  'min ₱${_currencyFormat.format(opt.minInvestment)}',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Deposit input
+          SizedBox(
+            width: 110,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: TextField(
+                controller: _depositControllers[opt.name],
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  prefixText: '₱',
+                  hintText: '—',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
           ),
-          child: child,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildActionCard() {
+  // ── Run button ────────────────────────────────────────────────────────────
+
+  Widget _buildRunButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -444,8 +560,9 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          elevation: 5,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          elevation: 4,
           shadowColor: Colors.deepPurple.withOpacity(0.3),
         ),
         child: const Row(
@@ -467,11 +584,52 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── Shimmer ───────────────────────────────────────────────────────────────
+
+  Widget _buildShimmerLoading() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Column(
+          children: [
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              height: 300,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Bottom nav ────────────────────────────────────────────────────────────
+
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
+          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10),
         ],
       ),
       child: BottomNavigationBar(
@@ -479,20 +637,97 @@ class _HomePageState extends State<HomePage> {
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
         currentIndex: 1,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 2) Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DetailsPage()),
-          );
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DetailsPage()),
+            );
+          }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'Details'),
         ],
+      ),
+    );
+  }
+
+  // ── Shared helpers ────────────────────────────────────────────────────────
+
+  Widget _card({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: child,
+    );
+  }
+
+  Widget _cardTitle(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.deepPurple, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+        ),
+      ],
+    );
+  }
+
+  Widget _fieldBox({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _fieldLabel(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: Colors.grey[500]),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey[400],
+        letterSpacing: 1.2,
       ),
     );
   }

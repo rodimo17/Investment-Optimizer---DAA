@@ -7,6 +7,7 @@ class InvestmentOption {
   final String riskLevel;
   final int riskScore;
   final double minInvestment;
+  final int depositAmount;
 
 
   InvestmentOption({
@@ -16,5 +17,6 @@ class InvestmentOption {
     required this.riskLevel,
     required this.riskScore,
     required this.minInvestment,
+    required this.depositAmount,
   });
 }
