@@ -240,6 +240,36 @@ class _ResultPageState extends State<ResultPage> {
                 ),
             ],
           ),
+
+          // after the Wrap badges block
+if (res.requestedMinOptions != res.allocations.length && 
+    res.requestedMinOptions > res.allocations.length)
+  Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.orange[50],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.orange[200]!),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.info_outline, color: Colors.orange[700], size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'You requested ${res.requestedMinOptions} minimum assets, '
+            'but only ${res.allocations.length} valid options were available.',
+            style: TextStyle(
+              color: Colors.orange[800],
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
           const SizedBox(height: 24),
 
           // Allocation header

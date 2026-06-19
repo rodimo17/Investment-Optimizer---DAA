@@ -42,6 +42,7 @@ class OptimizationResult {
   final double bankAllocationPercent;
   final double usedCapital;
   final bool metDiversificationFloor;
+  final int requestedMinOptions;
 
   OptimizationResult({
     required this.allocations,
@@ -55,6 +56,7 @@ class OptimizationResult {
     required this.bankAllocationPercent,
     required this.usedCapital,
     required this.metDiversificationFloor,
+    required this.requestedMinOptions,
   });
 }
 
@@ -62,6 +64,7 @@ class OptimizerService {
   static final OptimizerService _instance = OptimizerService._internal();
   factory OptimizerService() => _instance;
   OptimizerService._internal();
+
 
   static const Map<String, int> riskLimits = {
     'Conservative': 3,
@@ -86,16 +89,13 @@ class OptimizerService {
     for (var data in freshData) {
       final index = allOptions.indexWhere((opt) => opt.name.contains(data.ticker));
       if (index != -1) {
-        // We use monthly change as a proxy for annual rate in this demo logic,
-        // or a more complex mapping if needed. For now, let's just update it.
-        // Assuming data.monthlyChange is in percent (e.g. 1.5 for 1.5%)
         final newRate = data.monthlyChange / 100 * 12; // Annualized
         allOptions[index] = allOptions[index].copyWith(annualReturnRate: newRate);
       }
     }
   }
 
-  double _maxProfit = -1.0;
+  double _maxProfit = -1.0; // because 0 is still a valid profit in our case
   List<Allocation> _bestAllocations = [];
   List<TraceStep> _steps = [];
   int _statesCount = 0;
@@ -103,11 +103,11 @@ class OptimizerService {
   double _bestUsedCapital = 0;
   int _bestRiskScore = 0;
 
-  /// Solves a 3-constraint 0/1 knapsack via backtracking with pruning.
+  /// Solves using backtracking 0/1 knapsack
   ///
-  /// Each option carries a fixed [depositAmount] — the real weight in the
-  /// knapsack sense. The algorithm picks a SUBSET of options such that:
-  ///   1. Total deposits do not exceed [capacity]                  (hard)
+  /// Each option carries a user-defined [depositAmount], the real weight in the
+  /// knapsack sense. The algorithm picks a SUBSET of options that satifies:
+  ///   1. Total deposits do not exceed [capacity] (hard)
   ///   2. Total risk score does not exceed the [riskPreference] limit (hard)
   ///   3. At least [minOptions] assets are included, if feasible at all (soft)
   ///   4. Total profit is maximized among combinations meeting the above
@@ -128,30 +128,40 @@ class OptimizerService {
     _bestRiskScore = 0;
 
     double timeFactor = 1.0;
-    if (horizon == '1 month') timeFactor = 1 / 12;
-    else if (horizon == '3 months') timeFactor = 3 / 12;
-    else if (horizon == '6 months') timeFactor = 6 / 12;
+    if (horizon == '1 month') {
+      timeFactor = 1 / 12;}
+    else if (horizon == '3 months') {
+      timeFactor = 3 / 12;}
+    else if (horizon == '6 months') {
+      timeFactor = 6 / 12;}
 
+    //safety net in case of invalid riskPreference input
     final maxRisk = riskLimits[riskPreference] ?? 6;
     final source = customOptions ?? allOptions;
 
-    // Pre-filter: skip options that are individually already infeasible.
+    // ----MAIN ALGORITHM----- 
+
+    // Algorithm 1
+    // Pre-filter: skip options that are above the maxRisk value
     final available = source.where((opt) =>
         opt.riskScore <= maxRisk &&
         opt.depositAmount <= capacity &&
         opt.depositAmount >= opt.minInvestment
     ).toList();
 
+    // an edge case that handles in case the pre filter removes every option
     if (available.isEmpty) {
       return OptimizationResult(
         allocations: [], totalProfit: 0, steps: _steps, statesExplored: 0,
         branchesPruned: 0, totalRiskScore: 0, maxRiskLimit: maxRisk,
         etfAllocationPercent: 0, bankAllocationPercent: 0, usedCapital: 0,
         metDiversificationFloor: false,
+        requestedMinOptions: minOptions,
       );
     }
-
+    // if the user didnt pass his max options, we will include every options instead
     final effectiveMax = (maxOptions ?? available.length).clamp(1, available.length);
+    // prevents minOptions being higher than effectiveMax, accepting only from 1 up to value of effectiveMax
     final effectiveMin = minOptions.clamp(1, effectiveMax);
 
     _backtrack(
@@ -166,7 +176,8 @@ class OptimizerService {
       minOptions: effectiveMin,
       maxOptions: effectiveMax,
     );
-
+    
+    //adds all the user defined deposit amounts separately to be used for knapsack algo
     final etfUsed = _bestAllocations.where((a) => a.option.type == InvestmentType.etf).fold<double>(0, (s, a) => s + a.amount);
     final bankUsed = _bestAllocations.where((a) => a.option.type == InvestmentType.bank).fold<double>(0, (s, a) => s + a.amount);
 
@@ -175,6 +186,7 @@ class OptimizerService {
       totalProfit: _maxProfit < 0 ? 0 : _maxProfit,
       steps: _steps,
       statesExplored: _statesCount,
+      requestedMinOptions: minOptions,
       branchesPruned: _prunedCount,
       totalRiskScore: _bestRiskScore,
       maxRiskLimit: maxRisk,
@@ -197,10 +209,12 @@ class OptimizerService {
     required int minOptions,
     required int maxOptions,
   }) {
+    //tracks the number of iterations the algorithm will go through
     _statesCount++;
 
-    // Soft prune: once a floor-meeting best exists, cut any branch that can
-    // never reach the floor itself — it can never outrank that best.
+    // Algorithm 2
+    // Soft prune: remove all branches that does not beat the 
+    //current best that satisfies minOptions
     final remainingItems = options.length - index;
     final canReachFloor = currentSelections.length + remainingItems >= minOptions;
     final bestMeetsFloor = _bestAllocations.length >= minOptions;
@@ -214,8 +228,14 @@ class OptimizerService {
       return;
     }
 
+    //checks if we are in the leaf node, by checking if either
+    //we have selected the max number of assets, or we have run out 
+    //of options to select from
+
+    // leaf node - achieved the max number of options allowed for a specific combination
     if (currentSelections.length == maxOptions || index == options.length) {
       if (currentSelections.isNotEmpty) {
+        //passed to evaluate algo, and checks if it beats the current best
         _evaluateSelection(
           selection: currentSelections,
           usedBudget: currentUsedBudget,
@@ -228,20 +248,22 @@ class OptimizerService {
     }
 
     final option = options[index];
-    final newRisk = currentRisk + option.riskScore;
-    final newBudget = currentUsedBudget + option.depositAmount;
+    final newRisk = currentRisk + option.riskScore; //temp variable to hold the new risk score if we include the current option
+    final newBudget = currentUsedBudget + option.depositAmount; //temp variable to hold the new risk score if we include the current option
 
-    // Hard prune, checked BEFORE including — matches "if weight[n] > W,
-    // case 1 (exclude) is the only possibility," no wasted recursive call.
+    
+    //hard prune - newRisk <= maxRisk && newBudget <= capacity
     if (newRisk <= maxRisk && newBudget <= capacity) {
-      currentSelections.add(option);
-      _backtrack(
+      //Include - only runs if the current option can be included without exceeding max risk or budget
+      currentSelections.add(option); // commits 
+      _backtrack( // recurse deeper 
         options: options, index: index + 1, currentSelections: currentSelections,
         currentRisk: newRisk, currentUsedBudget: newBudget, capacity: capacity,
-        timeFactor: timeFactor, maxRisk: maxRisk, minOptions: minOptions, maxOptions: maxOptions,
+        timeFactor: timeFactor, maxRisk: maxRisk, minOptions: minOptions, maxOptions: maxOptions, 
       );
-      currentSelections.removeLast();
-    } else {
+      currentSelections.removeLast(); //undo on unwind 
+    } 
+    else { //prunes if exceeded max risk or budget 
       _prunedCount++;
       _steps.add(TraceStep(
         type: StepType.pruned,
@@ -250,6 +272,7 @@ class OptimizerService {
       ));
     }
 
+    //Exclude - always runs, no condition, since we can always exclude the current option and move to the next one
     _backtrack(
       options: options, index: index + 1, currentSelections: currentSelections,
       currentRisk: currentRisk, currentUsedBudget: currentUsedBudget, capacity: capacity,
@@ -264,6 +287,8 @@ class OptimizerService {
     required int currentRisk,
     required int minOptions,
   }) {
+    //this is where we calculate the profit of the current selection, and compare it to the best profit,
+    //and update the best if the current one is better.
     final allocations = selection.map((opt) {
       final profit = opt.depositAmount * opt.annualReturnRate * timeFactor;
       return Allocation(option: opt, amount: opt.depositAmount, profit: profit, rank: 0);
