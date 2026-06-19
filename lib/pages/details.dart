@@ -206,21 +206,21 @@ class DetailsPage extends StatelessWidget {
           ),
           const Padding(
             padding: EdgeInsets.only(left: 32),
-            child: Text('Ranked by Safety, Liquidity & Yield', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            child: Text('Ranked by Annual Yield', style: TextStyle(color: Colors.grey, fontSize: 12)),
           ),
           const SizedBox(height: 32),
-          _bankRow('SeaBank', '4.25%', 9, 10, Icons.waves),
-          _bankRow('GoTyme Bank', '4.00%', 9, 10, Icons.credit_card_outlined),
-          _bankRow('Maya Bank', '3.50%', 8, 10, Icons.account_balance_wallet_outlined),
-          _bankRow('UNO Digital', '4.25%', 7, 9, Icons.verified_user_outlined),
-          _bankRow('Tonik Bank', '4.00%', 8, 8, Icons.savings_outlined),
-          _bankRow('CIMB Bank', '2.50%', 9, 9, Icons.account_balance_outlined),
+          _bankRow('SeaBank', '4.25%', Icons.waves),
+          _bankRow('GoTyme Bank', '4.00%', Icons.credit_card_outlined),
+          _bankRow('Maya Bank', '3.50%', Icons.account_balance_wallet_outlined),
+          _bankRow('UNO Digital', '4.25%', Icons.verified_user_outlined),
+          _bankRow('Tonik Bank', '4.00%', Icons.savings_outlined),
+          _bankRow('CIMB Bank', '2.50%', Icons.account_balance_outlined),
         ],
       ),
     );
   }
 
-  Widget _bankRow(String name, String rate, int safety, int liquidity, IconData icon) {
+  Widget _bankRow(String name, String rate, IconData icon) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Column(
@@ -244,33 +244,12 @@ class DetailsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Row(
-              children: [
-                _buildMetric(Icons.shield_outlined, 'Safety', '$safety/10'),
-                const SizedBox(width: 24),
-                _buildMetric(Icons.speed_outlined, 'Liquidity', '$liquidity/10'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           const Divider(height: 1, color: Color(0xFFF5F5F5)),
         ],
       ),
     );
   }
 
-  Widget _buildMetric(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 12, color: Colors.grey[500]),
-        const SizedBox(width: 6),
-        Text('$label: ', style: TextStyle(color: Colors.grey[600], fontSize: 11)),
-        Text(value, style: const TextStyle(color: Colors.black87, fontSize: 11, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
 
   Widget _buildBottomNav(BuildContext context) {
     return Container(
