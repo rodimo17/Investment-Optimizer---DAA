@@ -399,12 +399,11 @@ class _HomePageState extends State<HomePage> {
 
   void _quickSet(double amount) {
     final formatted = _currencyFormat.format(amount).split('.')[0];
-    _capitalController.removeListener(_formatCapital);
     _capitalController.value = TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
-    _capitalController.addListener(_formatCapital);
+    setState(() {});
   }
 
   @override
