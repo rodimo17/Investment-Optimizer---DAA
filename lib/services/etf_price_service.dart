@@ -19,7 +19,7 @@ class EtfPriceData {
 }
 
 class EtfPriceService {
-  static const String _apiKey = 'UFUUAP47CN58YS63';
+  static const String _apiKey = 'RQ0DSMW7JAY59LEK';
   static const String _baseUrl = 'https://www.alphavantage.co/query';
   static const List<String> tickers = ['QQQ', 'VOO', 'VTI'];
   static const int _dailyQuota = 25;

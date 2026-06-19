@@ -352,7 +352,7 @@ void _formatController(TextEditingController controller) {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Investment Optimizer',
+                'Investi-Aid',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
