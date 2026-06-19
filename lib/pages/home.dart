@@ -111,7 +111,7 @@ class _HomePageState extends State<HomePage> {
     controller.addListener(() => _formatController(controller));
   }
 
-  Future<void> _fetchRates() async {
+  void _fetchRates() async {
     setState(() => _isUpdatingRates = true);
     final etfPriceService = EtfPriceService();
     final results = await etfPriceService.getMonthlyPrices();
@@ -134,6 +134,92 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  void _showAddOptionDialog() {
+    final nameController = TextEditingController();
+    final rateController = TextEditingController();
+    final minInvestController = TextEditingController();
+    InvestmentType selectedType = InvestmentType.bank;
+    int selectedRiskScore = 1;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Custom Option'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name (e.g. GSave)'),
+                ),
+                TextField(
+                  controller: rateController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Annual Rate (e.g. 0.05 for 5%)'),
+                ),
+                TextField(
+                  controller: minInvestController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Min Investment (₱)'),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<InvestmentType>(
+                  value: selectedType,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: InvestmentType.values.map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase()))).toList(),
+                  onChanged: (v) => setDialogState(() => selectedType = v!),
+                ),
+                const SizedBox(height: 16),
+                Text('Risk Score: $selectedRiskScore'),
+                Slider(
+                  value: selectedRiskScore.toDouble(),
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  label: selectedRiskScore.toString(),
+                  onChanged: (v) => setDialogState(() => selectedRiskScore = v.toInt()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                final rate = double.tryParse(rateController.text) ?? 0.0;
+                final min = double.tryParse(minInvestController.text) ?? 0.0;
+                if (name.isEmpty) return;
+
+                final newOpt = InvestmentOption(
+                  name: name,
+                  annualReturnRate: rate,
+                  type: selectedType,
+                  riskLevel: selectedRiskScore <= 3 ? 'Conservative' : (selectedRiskScore <= 7 ? 'Moderate' : 'Aggressive'),
+                  riskScore: selectedRiskScore,
+                  minInvestment: min,
+                  depositAmount: 0,
+                );
+
+                _optimizerService.addCustomOption(newOpt);
+                _depositControllers[name] = TextEditingController();
+                _depositControllers[name]!.addListener(() => _formatController(_depositControllers[name]!));
+                
+                setState(() {
+                  _maxOptions = _optimizerService.allOptions.length;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('ADD'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Builds the list of InvestmentOptions with user-supplied deposit amounts
@@ -625,10 +711,21 @@ class _HomePageState extends State<HomePage> {
         children: [
           _cardTitle(Icons.savings_outlined, 'Deposit Slots'),
           const SizedBox(height: 4),
-          Text(
-            'Set how much you want to commit to each option. '
-            'Leave blank to exclude it from the search.',
-            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Set how much you want to commit to each option. '
+                  'Leave blank to exclude it from the search.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Colors.indigo),
+                onPressed: _showAddOptionDialog,
+                tooltip: 'Add Custom Option',
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           _sectionLabel('BANK ACCOUNTS'),
@@ -646,6 +743,10 @@ class _HomePageState extends State<HomePage> {
   Widget _depositRow(InvestmentOption opt) {
     final isEtf = opt.type == InvestmentType.etf;
     final accentColor = isEtf ? Colors.indigo : Colors.deepPurple;
+    final isBuiltIn = [
+      'Maya Bank', 'SeaBank', 'UNO Digital', 'GoTyme Bank', 'Tonik Bank', 'CIMB Bank',
+      'VOO ETF', 'VTI ETF', 'QQQ ETF'
+    ].contains(opt.name);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -653,16 +754,26 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Icon + name
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              isEtf ? Icons.insights : Icons.account_balance,
-              size: 18,
-              color: accentColor,
+          GestureDetector(
+            onLongPress: isBuiltIn ? null : () {
+               setState(() {
+                 _optimizerService.removeCustomOption(opt.name);
+                 _depositControllers.remove(opt.name)?.dispose();
+                 _maxOptions = _optimizerService.allOptions.length;
+                 if (_minOptions > _maxOptions) _minOptions = _maxOptions;
+               });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isEtf ? Icons.insights : Icons.account_balance,
+                size: 18,
+                color: accentColor,
+              ),
             ),
           ),
           const SizedBox(width: 12),

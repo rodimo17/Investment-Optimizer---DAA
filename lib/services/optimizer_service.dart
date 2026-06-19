@@ -100,6 +100,14 @@ class OptimizerService {
     }
   }
 
+  void addCustomOption(InvestmentOption option) {
+    allOptions.add(option);
+  }
+
+  void removeCustomOption(String name) {
+    allOptions.removeWhere((opt) => opt.name == name);
+  }
+
   double _maxProfit = -1.0;
   List<Allocation> _bestAllocations = [];
   List<TraceStep> _steps = [];
