@@ -70,46 +70,51 @@ class _HomePageState extends State<HomePage> {
 
   void _formatCapital() => _formatController(_capitalController);
 
-  void _formatController(TextEditingController controller) {
-    String text = controller.text.replaceAll(',', '');
-    if (text.isEmpty) return;
+void _formatController(TextEditingController controller) {
+  final raw = controller.text.replaceAll(',', '');
 
-    // Prevent double listeners during modification
-    controller.removeListener(() => _formatController(controller));
+  // Nothing to format
+  if (raw.isEmpty) return;
 
-    // Support typing decimal point
-    if (text.endsWith('.')) {
-      controller.addListener(() => _formatController(controller));
-      return;
-    }
+  // User still typing a decimal
+  if (raw.endsWith('.')) return;
 
-    final value = double.tryParse(text);
-    if (value != null) {
-      // Custom formatting to preserve cents while typing
-      String formatted;
-      if (text.contains('.')) {
-        List<String> parts = text.split('.');
-        String whole = _currencyFormat.format(double.parse(parts[0])).split('.')[0];
-        String decimal = parts[1];
-        if (decimal.length > 2) decimal = decimal.substring(0, 2);
-        formatted = '$whole.$decimal';
-      } else {
-        formatted = _currencyFormat.format(value).split('.')[0];
-      }
+  final value = double.tryParse(raw);
 
-      // Preserve cursor position
-      int oldOffset = controller.selection.baseOffset;
-      int oldLen = controller.text.length;
+  // Not a valid number yet
+  if (value == null) return;
 
-      controller.value = TextEditingValue(
-        text: formatted,
-        selection: TextSelection.collapsed(
-          offset: (oldOffset + (formatted.length - oldLen)).clamp(0, formatted.length),
-        ),
-      );
-    }
-    controller.addListener(() => _formatController(controller));
+  // Clamp to safe maximum
+  if (value > 999999999) return;
+
+  // Build formatted string
+  String formatted;
+  if (raw.contains('.')) {
+    final parts = raw.split('.');
+    final whole = _currencyFormat.format(double.parse(parts[0])).split('.')[0];
+    var decimal = parts[1];
+    if (decimal.length > 2) decimal = decimal.substring(0, 2);
+    formatted = '$whole.$decimal';
+  } else {
+    formatted = _currencyFormat.format(value).split('.')[0];
   }
+
+  // Don't trigger if nothing actually changed
+  if (formatted == controller.text) return;
+
+  final oldOffset = controller.selection.baseOffset;
+  final oldLen = controller.text.length;
+
+  // Temporarily detach to prevent recursive calls
+  controller.removeListener(_formatCapital);
+  controller.value = TextEditingValue(
+    text: formatted,
+    selection: TextSelection.collapsed(
+      offset: (oldOffset + (formatted.length - oldLen)).clamp(0, formatted.length),
+    ),
+  );
+  controller.addListener(_formatCapital);
+}
 
   Future<void> _fetchRates() async {
     setState(() => _isUpdatingRates = true);

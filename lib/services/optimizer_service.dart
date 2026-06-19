@@ -1,10 +1,5 @@
 import '../models/investment_option.dart';
 
-/// Required on InvestmentOption: name (String), annualReturnRate (double),
-/// type (InvestmentType), riskLevel (String), riskScore (int),
-/// minInvestment (double), depositAmount (double), and
-/// copyWith({double? depositAmount}).
-
 enum StepType { evaluated, pruned, bestFound }
 
 class TraceStep {
@@ -75,15 +70,15 @@ class OptimizerService {
   };
 
   List<InvestmentOption> allOptions = [
-    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.10, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 100, depositAmount: 0),
-    InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
-    InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
-    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 500, depositAmount: 0),
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.03, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 100, depositAmount: 0),
+    InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0325, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
+    InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.035, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
+    InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.03, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 500, depositAmount: 0),
     InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 500, depositAmount: 0),
     InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 50, depositAmount: 0),
-    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 5, minInvestment: 2500, depositAmount: 0),
-    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 2, minInvestment: 2500, depositAmount: 0),
-    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', riskScore: 8, minInvestment: 5000, depositAmount: 0),
+    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 5, minInvestment: 60, depositAmount: 0),
+    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 3, minInvestment: 60, depositAmount: 0),
+    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', riskScore: 7, minInvestment: 60, depositAmount: 0),
   ];
 
   /// Updates the return rates for ETF options based on fresh market data.
@@ -107,21 +102,6 @@ class OptimizerService {
   int _prunedCount = 0;
   double _bestUsedCapital = 0;
   int _bestRiskScore = 0;
-
-  /// Computes a starting deposit for each option by splitting [capacity]
-  /// evenly across [targetCount] slots. This is just a default shown in the
-  /// UI's text fields — the user can edit individual amounts before
-  /// solveKnapsack runs. Whatever's set when it runs is treated as final.
-  List<InvestmentOption> generateDefaultDeposits({
-    required List<InvestmentOption> options,
-    required double capacity,
-    required int targetCount,
-  }) {
-    if (options.isEmpty) return options;
-    final n = targetCount.clamp(1, options.length);
-    final double defaultAmount = capacity / n;
-    return options.map((o) => o.copyWith(depositAmount: defaultAmount)).toList();
-  }
 
   /// Solves a 3-constraint 0/1 knapsack via backtracking with pruning.
   ///

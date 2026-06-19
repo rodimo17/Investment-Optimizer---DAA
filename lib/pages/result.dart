@@ -73,10 +73,6 @@ class _ResultPageState extends State<ResultPage> {
               padding: const EdgeInsets.all(20),
               sliver: SliverToBoxAdapter(child: _buildMainStatsCard(res)),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverToBoxAdapter(child: _buildEtfPulseCard()),
-            ),
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
               sliver: SliverToBoxAdapter(
@@ -85,7 +81,7 @@ class _ResultPageState extends State<ResultPage> {
                     Icon(Icons.psychology, size: 16, color: Colors.indigo),
                     SizedBox(width: 8),
                     Text(
-                      'PURE BACKTRACKING SEARCH',
+                      'Backtracking Process',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.indigo,
@@ -440,137 +436,6 @@ class _ResultPageState extends State<ResultPage> {
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── ETF pulse card ────────────────────────────────────────────────────────
-
-  Widget _buildEtfPulseCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.trending_up, color: Colors.deepPurple, size: 18),
-              SizedBox(width: 8),
-              Text(
-                'ETF Market Pulse',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Live ETF trend data for reference.',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          FutureBuilder<List<EtfPriceData>>(
-            future: _etfPricesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Text(
-                  'ETF prices are unavailable right now.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                );
-              }
-              return Column(
-                children: snapshot.data!.map((price) {
-                  final isPositive = price.monthlyChange >= 0;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.deepPurple[50],
-                          child: Text(
-                            price.ticker[0],
-                            style: const TextStyle(
-                              color: Colors.deepPurple,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                price.ticker,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text(
-                                price.lastUpdated,
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '₱${price.currentPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              '${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%',
-                              style: TextStyle(
-                                color: isPositive ? Colors.green : Colors.red,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              );
-            },
           ),
         ],
       ),

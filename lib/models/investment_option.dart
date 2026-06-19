@@ -2,7 +2,7 @@ enum InvestmentType { bank, etf }
 
 class InvestmentOption {
   final String name;
-  final double annualReturnRate; // High/Promo rate
+  final double annualReturnRate;
   final InvestmentType type;
   final String riskLevel;
   final int riskScore;

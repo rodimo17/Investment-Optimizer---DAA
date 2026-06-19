@@ -18,9 +18,9 @@ class EtfPriceData {
 
 class EtfPriceService {
   final Map<String, double> _basePrices = {
-    'QQQ': 25393.50,
-    'VOO': 29195.40,
-    'VTI': 14828.55,
+    'QQQ': 44807.51,
+    'VOO': 41630.66,
+    'VTI': 22384.40,
   };
 
   List<EtfPriceData> getMonthlyPrices() {
