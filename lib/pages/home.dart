@@ -17,8 +17,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _capitalController = TextEditingController();
-  String _selectedHorizon = '1 month';
-  String _selectedRisk = 'Moderate';
+  final _settings = AppSettings();
+
+  late String _selectedHorizon;
+  late String _selectedRisk;
 
   int _minOptions = 1;
   int _maxOptions = 9;
@@ -27,13 +29,34 @@ class _HomePageState extends State<HomePage> {
   bool _isCalculating = false;
 
   final OptimizerService _optimizerService = OptimizerService();
-  final NumberFormat _currencyFormat = NumberFormat("#,##0.00", "en_US");
+  late NumberFormat _currencyFormat;
 
   late Map<String, TextEditingController> _depositControllers;
+
+  // ── Currency helpers ──────────────────────────────────────────────────────
+
+  /// Returns the currency symbol from the settings string, e.g. '₱ PHP' → '₱'
+  String get _currencySymbol => _settings.currency.split(' ').first;
+
+  /// Rebuilds the NumberFormat whenever decimal places change.
+  void _rebuildCurrencyFormat() {
+    final decimals = _settings.decimalPlaces;
+    final pattern = decimals == 0
+        ? '#,##0'
+        : '#,##0.${'0' * decimals}';
+    _currencyFormat = NumberFormat(pattern, 'en_US');
+  }
 
   @override
   void initState() {
     super.initState();
+
+    // Pick up defaults from settings
+    _selectedHorizon = _settings.defaultHorizon;
+    _selectedRisk = _settings.defaultRisk;
+
+    _rebuildCurrencyFormat();
+
     _maxOptions = _optimizerService.allOptions.length;
     _depositControllers = {
       for (final opt in _optimizerService.allOptions)
@@ -43,19 +66,27 @@ class _HomePageState extends State<HomePage> {
               : '',
         ),
     };
-<<<<<<< HEAD
-    _capitalController.addListener(_formatCapital);
-    for (final c in _depositControllers.values) {
-      c.addListener(() => _formatController(c));
-    }
-=======
 
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
-    _fetchRates();
+    // Listen to settings changes so currency / decimal updates are reactive
+    _settings.addListener(_onSettingsChanged);
+
+    // Auto-refresh rates if the user enabled that option
+    if (_settings.autoRefreshRates) {
+      _fetchRates();
+    }
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) {
+      setState(() {
+        _rebuildCurrencyFormat();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _settings.removeListener(_onSettingsChanged);
     _capitalController.dispose();
     for (final c in _depositControllers.values) {
       c.dispose();
@@ -66,46 +97,37 @@ class _HomePageState extends State<HomePage> {
   void _formatController(TextEditingController controller) {
     String text = controller.text.replaceAll(',', '');
     if (text.isEmpty) return;
-<<<<<<< HEAD
-    controller.removeListener(() => _formatController(controller));
-    if (text.endsWith('.')) {
-      controller.addListener(() => _formatController(controller));
-      return;
-=======
     if (text == '.') return;
 
     // Handle multiple dots
     if ('.'.allMatches(text).length > 1) {
       text = text.substring(0, text.lastIndexOf('.'));
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
     }
     final value = double.tryParse(text);
     if (value != null) {
       String formatted;
       if (text.contains('.')) {
         List<String> parts = text.split('.');
-        String whole = _currencyFormat.format(double.parse(parts[0] == '' ? '0' : parts[0])).split('.')[0];
+        String whole = _currencyFormat
+            .format(double.parse(parts[0] == '' ? '0' : parts[0]))
+            .split('.')[0];
         String decimal = parts[1];
         if (decimal.length > 2) decimal = decimal.substring(0, 2);
         formatted = '$whole.$decimal';
       } else {
         formatted = _currencyFormat.format(value).split('.')[0];
       }
-<<<<<<< HEAD
-      int oldOffset = controller.selection.baseOffset;
-      int oldLen = controller.text.length;
-=======
 
       if (controller.text == formatted) return;
 
       int selectionOffset = controller.selection.baseOffset;
       int oldLength = controller.text.length;
 
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
       controller.value = TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(
-          offset: (selectionOffset + (formatted.length - oldLength)).clamp(0, formatted.length),
+          offset: (selectionOffset + (formatted.length - oldLength))
+              .clamp(0, formatted.length),
         ),
       );
     }
@@ -139,45 +161,55 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Add Custom Option', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Add Custom Option',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: StatefulBuilder(
           builder: (context, setDialogState) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _dialogField('Asset Name', nameController, 'e.g. GSave', Icons.label_outline),
+                _dialogField('Asset Name', nameController, 'e.g. GSave',
+                    Icons.label_outline),
                 const SizedBox(height: 16),
-<<<<<<< HEAD
-                DropdownButtonFormField<InvestmentType>(
-                  value: selectedType,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                  items: InvestmentType.values
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase())))
-                      .toList(),
-                  onChanged: (v) => setDialogState(() => selectedType = v!),
-                ),
-=======
-                _dialogField('Annual Rate', rateController, 'e.g. 0.05 for 5%', Icons.percent, isNumber: true),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
+                _dialogField('Annual Rate', rateController, 'e.g. 0.05 for 5%',
+                    Icons.percent,
+                    isNumber: true),
                 const SizedBox(height: 16),
-                _dialogField('Min Investment', minInvestController, '0', Icons.payments_outlined, isNumber: true),
+                _dialogField('Min Investment', minInvestController, '0',
+                    Icons.payments_outlined,
+                    isNumber: true),
                 const SizedBox(height: 24),
-                const Text('Category', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const Text('Category',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(child: _typeChoice(InvestmentType.bank, selectedType, (v) => setDialogState(() => selectedType = v))),
+                    Expanded(
+                        child: _typeChoice(InvestmentType.bank, selectedType,
+                            (v) => setDialogState(() => selectedType = v))),
                     const SizedBox(width: 8),
-                    Expanded(child: _typeChoice(InvestmentType.etf, selectedType, (v) => setDialogState(() => selectedType = v))),
+                    Expanded(
+                        child: _typeChoice(InvestmentType.etf, selectedType,
+                            (v) => setDialogState(() => selectedType = v))),
                   ],
                 ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Risk Score', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                    Text('$selectedRiskScore/10', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+                    const Text('Risk Score',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey)),
+                    Text('$selectedRiskScore/10',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo)),
                   ],
                 ),
                 Slider(
@@ -186,61 +218,33 @@ class _HomePageState extends State<HomePage> {
                   max: 10,
                   divisions: 9,
                   activeColor: Colors.indigo,
-                  onChanged: (v) => setDialogState(() => selectedRiskScore = v.toInt()),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedRiskScore = v.toInt()),
                 ),
               ],
             ),
           ),
-<<<<<<< HEAD
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-            ElevatedButton(
-              onPressed: () {
-                final name = nameController.text.trim();
-                final rate = double.tryParse(rateController.text) ?? 0.0;
-                final min = double.tryParse(minInvestController.text) ?? 0.0;
-                if (name.isEmpty) return;
-                final newOpt = InvestmentOption(
-                  name: name,
-                  annualReturnRate: rate,
-                  type: selectedType,
-                  riskLevel: selectedRiskScore <= 3
-                      ? 'Conservative'
-                      : (selectedRiskScore <= 7 ? 'Moderate' : 'Aggressive'),
-                  riskScore: selectedRiskScore,
-                  minInvestment: min,
-                  depositAmount: 0,
-                );
-                _optimizerService.addCustomOption(newOpt);
-                _depositControllers[name] = TextEditingController();
-                _depositControllers[name]!
-                    .addListener(() => _formatController(_depositControllers[name]!));
-                setState(() => _maxOptions = _optimizerService.allOptions.length);
-                Navigator.pop(context);
-              },
-              child: const Text('ADD'),
-=======
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
-            ),
             onPressed: () {
               final name = nameController.text.trim();
               final rate = double.tryParse(rateController.text) ?? 0.0;
-              final min = double.tryParse(minInvestController.text.replaceAll(',', '')) ?? 0.0;
+              final min = double.tryParse(
+                      minInvestController.text.replaceAll(',', '')) ??
+                  0.0;
               if (name.isEmpty) return;
 
               final newOpt = InvestmentOption(
                 name: name,
                 annualReturnRate: rate,
                 type: selectedType,
-                riskLevel: selectedRiskScore <= 3 ? 'Conservative' : (selectedRiskScore <= 7 ? 'Moderate' : 'Aggressive'),
+                riskLevel: selectedRiskScore <= 3
+                    ? 'Conservative'
+                    : (selectedRiskScore <= 7 ? 'Moderate' : 'Aggressive'),
                 riskScore: selectedRiskScore,
                 minInvestment: min,
                 depositAmount: 0,
@@ -248,7 +252,7 @@ class _HomePageState extends State<HomePage> {
 
               _optimizerService.addCustomOption(newOpt);
               _depositControllers[name] = TextEditingController();
-              
+
               setState(() {
                 _maxOptions = _optimizerService.allOptions.length;
               });
@@ -261,11 +265,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _dialogField(String label, TextEditingController controller, String hint, IconData icon, {bool isNumber = false}) {
+  Widget _dialogField(String label, TextEditingController controller,
+      String hint, IconData icon,
+      {bool isNumber = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey)),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -276,20 +286,25 @@ class _HomePageState extends State<HomePage> {
           ),
           child: TextField(
             controller: controller,
-            keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+            keyboardType: isNumber
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.text,
             decoration: InputDecoration(
               hintText: hint,
               border: InputBorder.none,
               icon: Icon(icon, size: 18, color: Colors.grey),
             ),
-            onChanged: isNumber && label == 'Min Investment' ? (_) => _formatController(controller) : null,
+            onChanged: isNumber && label == 'Min Investment'
+                ? (_) => _formatController(controller)
+                : null,
           ),
         ),
       ],
     );
   }
 
-  Widget _typeChoice(InvestmentType type, InvestmentType selected, Function(InvestmentType) onSelect) {
+  Widget _typeChoice(InvestmentType type, InvestmentType selected,
+      Function(InvestmentType) onSelect) {
     final isSelected = type == selected;
     return InkWell(
       onTap: () => onSelect(type),
@@ -298,7 +313,8 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: isSelected ? Colors.indigo : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? Colors.indigo : Colors.grey[300]!),
+          border:
+              Border.all(color: isSelected ? Colors.indigo : Colors.grey[300]!),
         ),
         child: Text(
           type.name.toUpperCase(),
@@ -316,7 +332,8 @@ class _HomePageState extends State<HomePage> {
   List<InvestmentOption>? _buildOptionsWithDeposits(double capital) {
     final options = <InvestmentOption>[];
     for (final opt in _optimizerService.allOptions) {
-      final raw = _depositControllers[opt.name]!.text.replaceAll(',', '').trim();
+      final raw =
+          _depositControllers[opt.name]!.text.replaceAll(',', '').trim();
       if (raw.isEmpty) continue;
       final amount = double.tryParse(raw);
       if (amount == null || amount <= 0) {
@@ -330,7 +347,8 @@ class _HomePageState extends State<HomePage> {
       if (amount < opt.minInvestment) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-            '${opt.name} requires a minimum of ₱${_currencyFormat.format(opt.minInvestment)}.',
+            '${opt.name} requires a minimum of '
+            '$_currencySymbol${_currencyFormat.format(opt.minInvestment)}.',
           ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
@@ -359,7 +377,8 @@ class _HomePageState extends State<HomePage> {
     if (total > capital) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
-          'Total deposits (₱${_currencyFormat.format(total)}) exceed your capital. '
+          'Total deposits ($_currencySymbol${_currencyFormat.format(total)}) '
+          'exceed your capital. '
           'The optimizer will find the best subset that fits.',
         ),
         duration: const Duration(seconds: 4),
@@ -396,14 +415,27 @@ class _HomePageState extends State<HomePage> {
     );
     setState(() => _isCalculating = false);
     if (mounted) {
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, animation, __) => ResultPage(optimizationResult: result),
-          transitionsBuilder: (_, animation, __, child) =>
-              FadeTransition(opacity: animation, child: child),
-        ),
-      );
+      // ── Animate Results setting ──────────────────────────────────────────
+      // When animateResults is enabled, use a fade transition; otherwise push
+      // with the default platform transition.
+      if (_settings.animateResults) {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, animation, __) =>
+                ResultPage(optimizationResult: result),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+          ),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ResultPage(optimizationResult: result),
+          ),
+        );
+      }
     }
   }
 
@@ -420,17 +452,25 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      bottomNavigationBar: _buildBottomNav(),
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: _isCalculating ? _buildShimmerLoading() : _buildContent(),
+    // Rebuild whenever AppSettings notifies (already handled via listener,
+    // but wrapping in ListenableBuilder ensures the entire tree re-renders).
+    return ListenableBuilder(
+      listenable: _settings,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          bottomNavigationBar: _buildBottomNav(),
+          body: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child:
+                    _isCalculating ? _buildShimmerLoading() : _buildContent(),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -464,7 +504,6 @@ class _HomePageState extends State<HomePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          // Gradient stays fixed — looks intentional in both light and dark
           colors: [Colors.indigo[900]!, Colors.deepPurple[800]!],
         ),
         borderRadius: const BorderRadius.only(
@@ -479,7 +518,8 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
+      padding:
+          const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,7 +540,6 @@ class _HomePageState extends State<HomePage> {
           ),
           Row(
             children: [
-              // Refresh button / spinner
               _isUpdatingRates
                   ? const Padding(
                       padding: EdgeInsets.only(top: 4),
@@ -511,9 +550,9 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.white, strokeWidth: 3),
                       ),
                     )
-                  : _headerIconButton(Icons.refresh_rounded, 'Sync Market Data', _fetchRates),
+                  : _headerIconButton(
+                      Icons.refresh_rounded, 'Sync Market Data', _fetchRates),
               const SizedBox(width: 8),
-              // Settings button — was misplaced outside the Row previously
               _headerIconButton(
                 Icons.settings_outlined,
                 'Settings',
@@ -529,7 +568,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _headerIconButton(IconData icon, String tooltip, VoidCallback onPressed) {
+  Widget _headerIconButton(
+      IconData icon, String tooltip, VoidCallback onPressed) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
@@ -555,32 +595,22 @@ class _HomePageState extends State<HomePage> {
           _fieldBox(
             child: TextField(
               controller: _capitalController,
-<<<<<<< HEAD
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                  color: Color(0xFF1E293B)),
               decoration: InputDecoration(
-=======
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF1E293B)),
-              decoration: const InputDecoration(
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
                 hintText: '0',
                 border: InputBorder.none,
                 isDense: true,
-                prefixText: '₱ ',
-<<<<<<< HEAD
-                prefixStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-=======
-                prefixStyle: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold, fontSize: 24),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
+                // ── Display Currency setting ───────────────────────────────
+                prefixText: '$_currencySymbol ',
+                prefixStyle: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24),
               ),
               onChanged: (_) {
                 _formatController(_capitalController);
@@ -607,7 +637,8 @@ class _HomePageState extends State<HomePage> {
     return ActionChip(
       label: Text(label),
       backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      labelStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
       onPressed: () => _quickSet(amount),
     );
   }
@@ -662,22 +693,24 @@ class _HomePageState extends State<HomePage> {
           children: [
             _fieldLabel(Icons.shield_outlined, 'Risk Tolerance'),
             const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'MAX RISK: $maxRisk',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
+            // ── Show Risk Badge setting ──────────────────────────────────
+            if (_settings.showRiskBadge)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'MAX RISK: $maxRisk',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -687,7 +720,8 @@ class _HomePageState extends State<HomePage> {
             isExpanded: true,
             underline: const SizedBox(),
             dropdownColor: Theme.of(context).cardColor,
-            icon: const Icon(Icons.expand_more_rounded, color: Color(0xFF94A3B8)),
+            icon: const Icon(Icons.expand_more_rounded,
+                color: Color(0xFF94A3B8)),
             items: ['Conservative', 'Moderate', 'Aggressive']
                 .map((r) => DropdownMenuItem(
                       value: r,
@@ -815,17 +849,8 @@ class _HomePageState extends State<HomePage> {
             children: [
               Expanded(
                 child: Text(
-<<<<<<< HEAD
-                  'Set how much you want to commit to each option. '
-                  'Leave blank to exclude it from the search.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-=======
                   'How much do you want to commit to each option?',
                   style: TextStyle(color: Colors.grey[500], fontSize: 13),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
                 ),
               ),
               Container(
@@ -834,7 +859,8 @@ class _HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.add_rounded, color: Colors.indigo, size: 20),
+                  icon: const Icon(Icons.add_rounded,
+                      color: Colors.indigo, size: 20),
                   onPressed: _showAddOptionDialog,
                   tooltip: 'Add Custom Option',
                   constraints: const BoxConstraints(),
@@ -860,8 +886,15 @@ class _HomePageState extends State<HomePage> {
     final isEtf = opt.type == InvestmentType.etf;
     final accentColor = isEtf ? Colors.indigo : Colors.deepPurple;
     final isBuiltIn = [
-      'Maya Bank', 'SeaBank', 'UNO Digital', 'GoTyme Bank', 'Tonik Bank', 'CIMB Bank',
-      'VOO ETF', 'VTI ETF', 'QQQ ETF',
+      'Maya Bank',
+      'SeaBank',
+      'UNO Digital',
+      'GoTyme Bank',
+      'Tonik Bank',
+      'CIMB Bank',
+      'VOO ETF',
+      'VTI ETF',
+      'QQQ ETF',
     ].contains(opt.name);
 
     return Padding(
@@ -876,7 +909,8 @@ class _HomePageState extends State<HomePage> {
                       _optimizerService.removeCustomOption(opt.name);
                       _depositControllers.remove(opt.name)?.dispose();
                       _maxOptions = _optimizerService.allOptions.length;
-                      if (_minOptions > _maxOptions) _minOptions = _maxOptions;
+                      if (_minOptions > _maxOptions)
+                        _minOptions = _maxOptions;
                     }),
             child: Container(
               padding: const EdgeInsets.all(8),
@@ -905,8 +939,9 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 Text(
-                  '${(opt.annualReturnRate * 100).toStringAsFixed(2)}% p.a. · '
-                  'min ₱${_currencyFormat.format(opt.minInvestment)}',
+                  // ── Decimal Places + Display Currency settings ───────────
+                  '${(opt.annualReturnRate * 100).toStringAsFixed(_settings.decimalPlaces)}% p.a. · '
+                  'min $_currencySymbol${_currencyFormat.format(opt.minInvestment)}',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 11,
@@ -919,53 +954,34 @@ class _HomePageState extends State<HomePage> {
           SizedBox(
             width: 120,
             child: Container(
-<<<<<<< HEAD
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Theme.of(context).dividerColor),
-=======
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
+                border: Border.all(
+                    color: const Color(0xFFE2E8F0), width: 1.5),
               ),
               child: TextField(
                 controller: _depositControllers[opt.name],
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 textAlign: TextAlign.right,
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
-<<<<<<< HEAD
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurface,
-=======
                   fontSize: 14,
                   color: Color(0xFF1E293B),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
                 ),
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isDense: true,
-                  prefixText: '₱',
-<<<<<<< HEAD
-                  prefixStyle: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  hintText: '—',
-                  hintStyle: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-=======
-                  prefixStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                  // ── Display Currency setting ───────────────────────────
+                  prefixText: _currencySymbol,
+                  prefixStyle: const TextStyle(
+                      color: Color(0xFF94A3B8), fontSize: 12),
                   hintText: '0',
-                  hintStyle: TextStyle(color: Color(0xFFCBD5E1)),
->>>>>>> 5cf8ad4476b6f5aa17d3dbb8c0738710532263d7
+                  hintStyle:
+                      const TextStyle(color: Color(0xFFCBD5E1)),
                 ),
                 onChanged: (_) {
                   _formatController(_depositControllers[opt.name]!);
@@ -1006,7 +1022,8 @@ class _HomePageState extends State<HomePage> {
           foregroundColor: Colors.white,
           shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(vertical: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1065,13 +1082,15 @@ class _HomePageState extends State<HomePage> {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.08), blurRadius: 10),
         ],
       ),
       child: BottomNavigationBar(
         backgroundColor: Theme.of(context).cardColor,
         selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        unselectedItemColor:
+            Theme.of(context).colorScheme.onSurfaceVariant,
         currentIndex: 1,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
@@ -1083,9 +1102,12 @@ class _HomePageState extends State<HomePage> {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'Details'),
         ],
       ),
     );
@@ -1152,7 +1174,9 @@ class _HomePageState extends State<HomePage> {
   Widget _fieldLabel(IconData icon, String label) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        Icon(icon,
+            size: 15,
+            color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 6),
         Text(
           label,

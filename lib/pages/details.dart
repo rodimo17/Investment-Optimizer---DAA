@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
+import 'settings.dart';
 import '../services/etf_price_service.dart';
 
 class DetailsPage extends StatefulWidget {
@@ -11,67 +12,94 @@ class DetailsPage extends StatefulWidget {
 
 class _DetailsPageState extends State<DetailsPage> {
   final EtfPriceService _etfService = EtfPriceService();
+  final _settings = AppSettings();
+
+  // ── Currency helpers ──────────────────────────────────────────────────────
+
+  String get _currencySymbol => _settings.currency.split(' ').first;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.addListener(_onSettingsChanged);
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      bottomNavigationBar: _buildBottomNav(),
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverHeader(),
-          FutureBuilder<List<EtfPriceData>>(
-            future: _etfService.getMonthlyPrices(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                );
-              }
-
-              final prices = snapshot.data ?? const <EtfPriceData>[];
-
-              return SliverPadding(
-                padding: const EdgeInsets.all(20),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple[50],
-                        borderRadius: BorderRadius.circular(12),
+    return ListenableBuilder(
+      listenable: _settings,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          bottomNavigationBar: _buildBottomNav(),
+          body: CustomScrollView(
+            slivers: [
+              _buildSliverHeader(),
+              FutureBuilder<List<EtfPriceData>>(
+                future: _etfService.getMonthlyPrices(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator()),
                       ),
-                      child: Text(
-                        'Estimated free-tier API calls left: ${_etfService.callsLeft}/${_etfService.dailyQuota}',
-                        style: const TextStyle(
-                          color: Colors.deepPurple,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                    );
+                  }
+
+                  final prices = snapshot.data ?? const <EtfPriceData>[];
+
+                  return SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Estimated free-tier API calls left: '
+                            '${_etfService.callsLeft}/${_etfService.dailyQuota}',
+                            style: const TextStyle(
+                              color: Colors.deepPurple,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
+                        _buildCombinedTracker(prices),
+                        const SizedBox(height: 24),
+                        _buildInterestRatesCard(),
+                        const SizedBox(height: 40),
+                      ]),
                     ),
-                    _buildCombinedTracker(prices),
-                    const SizedBox(height: 24),
-                    _buildInterestRatesCard(),
-                    const SizedBox(height: 40),
-                  ]),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   // ── Sliver header ─────────────────────────────────────────────────────────
 
   Widget _buildSliverHeader() {
-    // context is available here because this is a State method
     final iconColor = Theme.of(context).colorScheme.onPrimary;
 
     return SliverAppBar(
@@ -85,7 +113,6 @@ class _DetailsPageState extends State<DetailsPage> {
       ),
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.only(left: 24, bottom: 20),
-        // Remove `const` here — Theme.of(context) is runtime-resolved
         title: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,11 +120,17 @@ class _DetailsPageState extends State<DetailsPage> {
           children: [
             Text(
               'Market Insights',
-              style: TextStyle(color: iconColor, fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: iconColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
             ),
             Text(
               'HISTORICAL TRENDS & LIVE PRICES',
-              style: TextStyle(color: iconColor.withOpacity(0.7), fontSize: 8, letterSpacing: 0.5),
+              style: TextStyle(
+                  color: iconColor.withOpacity(0.7),
+                  fontSize: 8,
+                  letterSpacing: 0.5),
             ),
           ],
         ),
@@ -158,13 +191,15 @@ class _DetailsPageState extends State<DetailsPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.green[50],
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'LIVE ₱',
+                  // ── Display Currency setting ─────────────────────────
+                  'LIVE $_currencySymbol',
                   style: TextStyle(
                     color: Colors.green[700],
                     fontWeight: FontWeight.bold,
@@ -175,7 +210,28 @@ class _DetailsPageState extends State<DetailsPage> {
             ],
           ),
           const SizedBox(height: 32),
-          ...prices.map((p) => _buildPriceItem(p)),
+          // ── Animate Results setting ──────────────────────────────────
+          // When enabled, each ETF row fades + slides in with a staggered
+          // delay; otherwise rows are rendered directly.
+          ...prices.asMap().entries.map(
+                (e) => _settings.animateResults
+                    ? TweenAnimationBuilder<double>(
+                        duration: Duration(
+                          milliseconds:
+                              200 + (e.key * 80).clamp(0, 800),
+                        ),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        builder: (context, value, child) => Opacity(
+                          opacity: value,
+                          child: Transform.translate(
+                            offset: Offset(0, 16 * (1 - value)),
+                            child: child,
+                          ),
+                        ),
+                        child: _buildPriceItem(e.value),
+                      )
+                    : _buildPriceItem(e.value),
+              ),
         ],
       ),
     );
@@ -226,7 +282,8 @@ class _DetailsPageState extends State<DetailsPage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '₱${price.currentPrice.toStringAsFixed(2)}',
+                    // ── Display Currency + Decimal Places settings ───────
+                    '$_currencySymbol${price.currentPrice.toStringAsFixed(_settings.decimalPlaces)}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -236,7 +293,9 @@ class _DetailsPageState extends State<DetailsPage> {
                   Row(
                     children: [
                       Icon(
-                        isPositive ? Icons.trending_up : Icons.trending_down,
+                        isPositive
+                            ? Icons.trending_up
+                            : Icons.trending_down,
                         size: 12,
                         color: isPositive ? Colors.green : Colors.red,
                       ),
@@ -311,7 +370,8 @@ class _DetailsPageState extends State<DetailsPage> {
           _bankRow('UNO Digital', '4.25%', Icons.verified_user_outlined),
           _bankRow('GoTyme Bank', '4.00%', Icons.credit_card_outlined),
           _bankRow('Tonik Bank', '4.00%', Icons.savings_outlined),
-          _bankRow('Maya Bank', '3.50%', Icons.account_balance_wallet_outlined),
+          _bankRow('Maya Bank', '3.50%',
+              Icons.account_balance_wallet_outlined),
           _bankRow('CIMB Bank', '2.50%', Icons.account_balance_outlined),
         ],
       ),
@@ -331,7 +391,8 @@ class _DetailsPageState extends State<DetailsPage> {
                   color: Theme.of(context).colorScheme.surfaceVariant,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 20, color: Colors.deepPurple),
+                child:
+                    Icon(icon, size: 20, color: Colors.deepPurple),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -345,7 +406,8 @@ class _DetailsPageState extends State<DetailsPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.deepPurple[50],
                   borderRadius: BorderRadius.circular(10),
@@ -374,7 +436,8 @@ class _DetailsPageState extends State<DetailsPage> {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: BottomNavigationBar(
@@ -392,9 +455,12 @@ class _DetailsPageState extends State<DetailsPage> {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'Details'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'Details'),
         ],
       ),
     );

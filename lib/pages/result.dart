@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'details.dart';
+import 'settings.dart';
 import '../services/etf_price_service.dart';
 import '../services/optimizer_service.dart';
 import '../models/investment_option.dart';
@@ -15,106 +16,147 @@ class ResultPage extends StatefulWidget {
 }
 
 class _ResultPageState extends State<ResultPage> {
-  final NumberFormat _currencyFormat = NumberFormat("#,##0.00", "en_US");
+  final _settings = AppSettings();
+  late NumberFormat _currencyFormat;
   bool _showSteps = false;
 
   late Future<List<EtfPriceData>> _etfPricesFuture;
 
+  // ── Currency helpers ──────────────────────────────────────────────────────
+
+  String get _currencySymbol => _settings.currency.split(' ').first;
+
+  void _rebuildCurrencyFormat() {
+    final decimals = _settings.decimalPlaces;
+    final pattern = decimals == 0 ? '#,##0' : '#,##0.${'0' * decimals}';
+    _currencyFormat = NumberFormat(pattern, 'en_US');
+  }
+
   @override
   void initState() {
     super.initState();
+
+    _rebuildCurrencyFormat();
+    _settings.addListener(_onSettingsChanged);
+
     _etfPricesFuture = EtfPriceService().getMonthlyPrices();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() => _showSteps = true);
-    });
+
+    // ── Animate Results setting ───────────────────────────────────────────
+    // Only delay the step reveal when animations are enabled.
+    if (_settings.animateResults) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) setState(() => _showSteps = true);
+      });
+    } else {
+      _showSteps = true;
+    }
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) {
+      setState(() => _rebuildCurrencyFormat());
+    }
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettingsChanged);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final res = widget.optimizationResult;
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      bottomNavigationBar: _buildBottomNav(context),
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverHeader(res),
-          if (res == null || res.allocations.isEmpty)
-            const SliverFillRemaining(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.search_off, size: 48, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text(
-                        'No valid combinations found.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Try increasing your capital, adjusting your risk tolerance, '
-                        'or lowering some deposit amounts.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else ...[
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverToBoxAdapter(child: _buildMainStatsCard(res)),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverToBoxAdapter(child: _buildEtfPulseCard()),
-            ),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-              sliver: SliverToBoxAdapter(
-                child: Row(
-                  children: [
-                    Icon(Icons.psychology, size: 16, color: Colors.indigo),
-                    SizedBox(width: 8),
-                    Text(
-                      'PURE BACKTRACKING SEARCH',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.indigo,
-                        fontSize: 12,
-                        letterSpacing: 1.2,
+    return ListenableBuilder(
+      listenable: _settings,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          bottomNavigationBar: _buildBottomNav(context),
+          body: CustomScrollView(
+            slivers: [
+              _buildSliverHeader(res),
+              if (res == null || res.allocations.isEmpty)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.search_off, size: 48, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'No valid combinations found.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Try increasing your capital, adjusting your risk tolerance, '
+                            'or lowering some deposit amounts.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
+                )
+              else ...[
+                SliverPadding(
+                  padding: const EdgeInsets.all(20),
+                  sliver: SliverToBoxAdapter(child: _buildMainStatsCard(res)),
                 ),
-              ),
-            ),
-            if (_showSteps)
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildStepItem(res.steps[index], index),
-                  childCount: res.steps.length,
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverToBoxAdapter(child: _buildEtfPulseCard()),
                 ),
-              )
-            else
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.psychology,
+                            size: 16, color: Colors.indigo),
+                        const SizedBox(width: 8),
+                        Text(
+                          'PURE BACKTRACKING SEARCH',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo[400],
+                            fontSize: 12,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: 40)),
-          ],
-        ],
-      ),
+                if (_showSteps)
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) =>
+                          _buildStepItem(res.steps[index], index),
+                      childCount: res.steps.length,
+                    ),
+                  )
+                else
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -136,7 +178,8 @@ class _ResultPageState extends State<ResultPage> {
             bottomRight: Radius.circular(40),
           ),
         ),
-        padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
+        padding: const EdgeInsets.only(
+            top: 60, bottom: 40, left: 24, right: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -176,65 +219,78 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildMainStatsCard(OptimizationResult res) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.04), blurRadius: 24,
-              offset: const Offset(0, 12)),
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
         ],
       ),
       padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Profit section
+          // ── Profit section ───────────────────────────────────────────────
           Center(
             child: Column(
               children: [
                 Text(
                   'ESTIMATED PROFIT',
                   style: TextStyle(
-                    color: const Color(0xFF94A3B8),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.5,
                   ),
                 ),
                 const SizedBox(height: 4),
+                // ── Display Currency + Decimal Places settings ───────────
                 Text(
-                  '₱${_currencyFormat.format(res.totalProfit)}',
-                  style: TextStyle(
+                  '$_currencySymbol${_currencyFormat.format(res.totalProfit)}',
+                  style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 40,
                     letterSpacing: -1,
-                    color: const Color(0xFF059669),
+                    color: Color(0xFF059669),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          
-          _buildStatRow('Committed Capital', '₱${_currencyFormat.format(res.usedCapital)}', Colors.indigo[700]!),
-          const Divider(height: 40, thickness: 0.5),
 
-          // Badges
+          // ── Display Currency + Decimal Places settings ─────────────────
+          _buildStatRow(
+            'Committed Capital',
+            '$_currencySymbol${_currencyFormat.format(res.usedCapital)}',
+            Colors.indigo[400]!,
+          ),
+          Divider(
+              height: 40,
+              thickness: 0.5,
+              color: Theme.of(context).dividerColor),
+
+          // ── Badges ───────────────────────────────────────────────────────
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildMiniBadge(
-                'RISK ${res.totalRiskScore}/${res.maxRiskLimit}',
-                Icons.shield_rounded,
-                Colors.amber[800]!,
-              ),
+              // ── Show Risk Badge setting ──────────────────────────────────
+              if (_settings.showRiskBadge)
+                _buildMiniBadge(
+                  'RISK ${res.totalRiskScore}/${res.maxRiskLimit}',
+                  Icons.shield_rounded,
+                  Colors.amber[700]!,
+                ),
               if (res.etfAllocationPercent > 0)
                 _buildMiniBadge(
                   'ETF ${res.etfAllocationPercent.toStringAsFixed(1)}%',
                   Icons.auto_graph_rounded,
-                  Colors.indigo[600]!,
+                  Colors.indigo[400]!,
                 ),
               if (res.bankAllocationPercent > 0)
                 _buildMiniBadge(
@@ -246,19 +302,19 @@ class _ResultPageState extends State<ResultPage> {
           ),
           const SizedBox(height: 24),
 
-          // Allocation header
+          // ── Allocation header ────────────────────────────────────────────
           Text(
             'TARGET ALLOCATIONS',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w900,
-              color: const Color(0xFF94A3B8),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               letterSpacing: 1.2,
             ),
           ),
           const SizedBox(height: 16),
 
-          // Allocation rows
+          // ── Allocation rows ──────────────────────────────────────────────
           ...res.allocations.map((alloc) => _buildAllocationRow(alloc)),
           const SizedBox(height: 12),
           _buildDaaStatsMini(res),
@@ -273,7 +329,11 @@ class _ResultPageState extends State<ResultPage> {
       children: [
         Text(
           label,
-          style: TextStyle(color: const Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 13),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
         ),
         Text(
           value,
@@ -295,7 +355,6 @@ class _ResultPageState extends State<ResultPage> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          // Type icon
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -305,18 +364,16 @@ class _ResultPageState extends State<ResultPage> {
             child: Icon(
               isEtf ? Icons.insights : Icons.account_balance,
               size: 20,
-              color: accentColor,
+              color: accentColor[300],
             ),
           ),
           const SizedBox(width: 14),
-          // Name + details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    // Rank badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
@@ -337,23 +394,26 @@ class _ResultPageState extends State<ResultPage> {
                     Flexible(
                       child: Text(
                         alloc.option.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // Rate badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
+                        color: const Color(0xFF059669).withOpacity(0.12),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        '${(alloc.option.annualReturnRate * 100).toStringAsFixed(2)}% p.a.',
-                        style: TextStyle(
-                          color: Colors.green[700],
+                        // ── Decimal Places setting ───────────────────────
+                        '${(alloc.option.annualReturnRate * 100).toStringAsFixed(_settings.decimalPlaces)}% p.a.',
+                        style: const TextStyle(
+                          color: Color(0xFF059669),
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -362,11 +422,11 @@ class _ResultPageState extends State<ResultPage> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                // Committed amount — framed as user's commitment, not algo output
                 Text(
-                  '₱${_currencyFormat.format(alloc.amount)} committed',
+                  // ── Display Currency + Decimal Places settings ─────────
+                  '$_currencySymbol${_currencyFormat.format(alloc.amount)} committed',
                   style: TextStyle(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -375,12 +435,12 @@ class _ResultPageState extends State<ResultPage> {
             ),
           ),
           const SizedBox(width: 8),
-          // Profit
           Text(
-            '+₱${_currencyFormat.format(alloc.profit)}',
+            // ── Display Currency + Decimal Places settings ───────────────
+            '+$_currencySymbol${_currencyFormat.format(alloc.profit)}',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.green,
+              color: Color(0xFF059669),
               fontSize: 13,
             ),
           ),
@@ -418,25 +478,25 @@ class _ResultPageState extends State<ResultPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
+        color: Colors.blue.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.psychology_outlined, color: Colors.blue, size: 20),
+          Icon(Icons.psychology_outlined, color: Colors.blue[300], size: 20),
           const SizedBox(width: 12),
-          const Text(
+          Text(
             'States explored: ',
             style: TextStyle(
-              color: Colors.blue,
+              color: Colors.blue[300],
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
           Text(
             '${res.statesExplored} iterations',
-            style: const TextStyle(
-              color: Colors.blue,
+            style: TextStyle(
+              color: Colors.blue[300],
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
@@ -451,8 +511,9 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildEtfPulseCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -465,21 +526,28 @@ class _ResultPageState extends State<ResultPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.trending_up, color: Colors.deepPurple, size: 18),
-              SizedBox(width: 8),
+              const Icon(Icons.trending_up,
+                  color: Colors.deepPurple, size: 18),
+              const SizedBox(width: 8),
               Text(
                 'ETF Market Pulse',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Live ETF trend data for reference.',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 16),
           FutureBuilder<List<EtfPriceData>>(
@@ -494,9 +562,13 @@ class _ResultPageState extends State<ResultPage> {
                 );
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Text(
+                return Text(
                   'ETF prices are unavailable right now.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(
+                    color:
+                        Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 );
               }
               return Column(
@@ -506,14 +578,15 @@ class _ResultPageState extends State<ResultPage> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey[50],
+                      color: Theme.of(context).colorScheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundColor: Colors.deepPurple[50],
+                          backgroundColor:
+                              Colors.deepPurple.withOpacity(0.12),
                           child: Text(
                             price.ticker[0],
                             style: const TextStyle(
@@ -530,15 +603,20 @@ class _ResultPageState extends State<ResultPage> {
                             children: [
                               Text(
                                 price.ticker,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
                                 ),
                               ),
                               Text(
                                 price.lastUpdated,
                                 style: TextStyle(
-                                  color: Colors.grey[600],
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   fontSize: 11,
                                 ),
                               ),
@@ -549,16 +627,22 @@ class _ResultPageState extends State<ResultPage> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '₱${price.currentPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(
+                              // ── Display Currency setting ───────────────
+                              '$_currencySymbol${price.currentPrice.toStringAsFixed(_settings.decimalPlaces)}',
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface,
                               ),
                             ),
                             Text(
                               '${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%',
                               style: TextStyle(
-                                color: isPositive ? Colors.green : Colors.red,
+                                color: isPositive
+                                    ? const Color(0xFF059669)
+                                    : Colors.red[400],
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -577,7 +661,7 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  // ── Backtracking trace steps ───────────────────────────────────────────────
+  // ── Backtracking trace steps ──────────────────────────────────────────────
 
   Widget _buildStepItem(TraceStep step, int index) {
     IconData icon;
@@ -597,6 +681,50 @@ class _ResultPageState extends State<ResultPage> {
         break;
     }
 
+    final tile = Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(icon, color: color, size: 18),
+        title: Text(
+          step.description,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        subtitle: Text(
+          step.title,
+          style: TextStyle(
+            fontSize: 10,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: step.profit != null
+            ? Text(
+                // ── Display Currency + Decimal Places settings ───────────
+                '+$_currencySymbol${_currencyFormat.format(step.profit!)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  color: Color(0xFF059669),
+                ),
+              )
+            : null,
+      ),
+    );
+
+    // ── Animate Results setting ───────────────────────────────────────────
+    // When animations are disabled, render the tile directly with no
+    // TweenAnimationBuilder overhead.
+    if (!_settings.animateResults) return tile;
+
     return TweenAnimationBuilder(
       duration: Duration(
         milliseconds: 300 + (index * 50).clamp(0, 1000).toInt(),
@@ -611,35 +739,7 @@ class _ResultPageState extends State<ResultPage> {
           ),
         );
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: ListTile(
-          dense: true,
-          leading: Icon(icon, color: color, size: 18),
-          title: Text(
-            step.description,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          subtitle: Text(
-            step.title,
-            style: const TextStyle(fontSize: 10),
-          ),
-          trailing: step.profit != null
-              ? Text(
-                  '+₱${_currencyFormat.format(step.profit!)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                    color: Colors.green,
-                  ),
-                )
-              : null,
-        ),
-      ),
+      child: tile,
     );
   }
 
@@ -654,9 +754,10 @@ class _ResultPageState extends State<ResultPage> {
         ],
       ),
       child: BottomNavigationBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).cardColor,
         selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor:
+            Theme.of(context).colorScheme.onSurfaceVariant,
         currentIndex: 0,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
