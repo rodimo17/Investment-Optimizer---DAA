@@ -1,10 +1,5 @@
 import '../models/investment_option.dart';
 
-/// Required on InvestmentOption: name (String), annualReturnRate (double),
-/// type (InvestmentType), riskLevel (String), riskScore (int),
-/// minInvestment (double), depositAmount (double), and
-/// copyWith({double? depositAmount}).
-
 enum StepType { evaluated, pruned, bestFound }
 
 class TraceStep {
@@ -74,26 +69,26 @@ class OptimizerService {
     'Aggressive': 10,
   };
 
+  /// Cap on trace steps stored per run — prevents unbounded memory growth
+  /// when the user runs the optimizer multiple times in one session.
+  static const int _maxTraceSteps = 200;
+
   List<InvestmentOption> allOptions = [
-    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.10, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 100, depositAmount: 0),
+    InvestmentOption(name: 'Maya Bank', annualReturnRate: 0.03, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 100, depositAmount: 0),
     InvestmentOption(name: 'SeaBank', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
     InvestmentOption(name: 'UNO Digital', annualReturnRate: 0.0425, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 1, depositAmount: 0),
     InvestmentOption(name: 'GoTyme Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 500, depositAmount: 0),
     InvestmentOption(name: 'Tonik Bank', annualReturnRate: 0.04, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 500, depositAmount: 0),
     InvestmentOption(name: 'CIMB Bank', annualReturnRate: 0.025, type: InvestmentType.bank, riskLevel: 'Conservative', riskScore: 1, minInvestment: 50, depositAmount: 0),
-    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 5, minInvestment: 2500, depositAmount: 0),
-    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 2, minInvestment: 2500, depositAmount: 0),
-    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', riskScore: 8, minInvestment: 5000, depositAmount: 0),
+    InvestmentOption(name: 'VOO ETF', annualReturnRate: 0.125, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 4, minInvestment: 60, depositAmount: 0),
+    InvestmentOption(name: 'VTI ETF', annualReturnRate: 0.12, type: InvestmentType.etf, riskLevel: 'Moderate', riskScore: 3, minInvestment: 60, depositAmount: 0),
+    InvestmentOption(name: 'QQQ ETF', annualReturnRate: 0.18, type: InvestmentType.etf, riskLevel: 'Aggressive', riskScore: 7, minInvestment: 60, depositAmount: 0),
   ];
 
-  /// Updates the return rates for ETF options based on fresh market data.
   void updateEtfRates(List<dynamic> freshData) {
     for (var data in freshData) {
       final index = allOptions.indexWhere((opt) => opt.name.contains(data.ticker));
       if (index != -1) {
-        // We use monthly change as a proxy for annual rate in this demo logic,
-        // or a more complex mapping if needed. For now, let's just update it.
-        // Assuming data.monthlyChange is in percent (e.g. 1.5 for 1.5%)
         final newRate = data.monthlyChange / 100 * 12; // Annualized
         allOptions[index] = allOptions[index].copyWith(annualReturnRate: newRate);
       }
@@ -116,28 +111,13 @@ class OptimizerService {
   double _bestUsedCapital = 0;
   int _bestRiskScore = 0;
 
-  /// Computes a starting deposit for each option by splitting [capacity]
-  /// evenly across [targetCount] slots. This is just a default shown in the
-  /// UI's text fields — the user can edit individual amounts before
-  /// solveKnapsack runs. Whatever's set when it runs is treated as final.
-  List<InvestmentOption> generateDefaultDeposits({
-    required List<InvestmentOption> options,
-    required double capacity,
-    required int targetCount,
-  }) {
-    if (options.isEmpty) return options;
-    final n = targetCount.clamp(1, options.length);
-    final double defaultAmount = capacity / n;
-    return options.map((o) => o.copyWith(depositAmount: defaultAmount)).toList();
-  }
-
   /// Solves a 3-constraint 0/1 knapsack via backtracking with pruning.
   ///
   /// Each option carries a fixed [depositAmount] — the real weight in the
   /// knapsack sense. The algorithm picks a SUBSET of options such that:
-  ///   1. Total deposits do not exceed [capacity]                  (hard)
-  ///   2. Total risk score does not exceed the [riskPreference] limit (hard)
-  ///   3. At least [minOptions] assets are included, if feasible at all (soft)
+  ///   1. Total deposits do not exceed [capacity]
+  ///   2. Total risk score does not exceed the [riskPreference] limit
+  ///   3. At least [minOptions] assets are included, if feasible at all
   ///   4. Total profit is maximized among combinations meeting the above
   OptimizationResult solveKnapsack({
     required double capacity,
@@ -147,6 +127,9 @@ class OptimizerService {
     int? maxOptions,
     List<InvestmentOption>? customOptions,
   }) {
+    // ── Reset all state before every run ────────────────────────────────────
+    // Explicitly set to new empty lists (not just clear()) so any reference
+    // held by a previous OptimizationResult is not mutated.
     _maxProfit = -1.0;
     _bestAllocations = [];
     _steps = [];
@@ -160,16 +143,21 @@ class OptimizerService {
     else if (horizon == '3 months') timeFactor = 3 / 12;
     else if (horizon == '6 months') timeFactor = 6 / 12;
 
+    // Safety net in case of invalid riskPreference input
     final maxRisk = riskLimits[riskPreference] ?? 6;
     final source = customOptions ?? allOptions;
 
-    // Pre-filter: skip options that are individually already infeasible.
+    // ── MAIN ALGORITHM ───────────────────────────────────────────────────────
+
+    // Algorithm 1
+    // Pre-filter: skip options that exceed maxRisk, budget, or minimum deposit
     final available = source.where((opt) =>
         opt.riskScore <= maxRisk &&
         opt.depositAmount <= capacity &&
         opt.depositAmount >= opt.minInvestment
     ).toList();
 
+    // Edge case: pre-filter removed every option
     if (available.isEmpty) {
       return OptimizationResult(
         allocations: [], totalProfit: 0, steps: _steps, statesExplored: 0,
@@ -179,7 +167,9 @@ class OptimizerService {
       );
     }
 
+    // If the user didn't pass maxOptions, include every option
     final effectiveMax = (maxOptions ?? available.length).clamp(1, available.length);
+    // Prevents minOptions from exceeding effectiveMax
     final effectiveMin = minOptions.clamp(1, effectiveMax);
 
     _backtrack(
@@ -195,8 +185,13 @@ class OptimizerService {
       maxOptions: effectiveMax,
     );
 
-    final etfUsed = _bestAllocations.where((a) => a.option.type == InvestmentType.etf).fold<double>(0, (s, a) => s + a.amount);
-    final bankUsed = _bestAllocations.where((a) => a.option.type == InvestmentType.bank).fold<double>(0, (s, a) => s + a.amount);
+    // Tally ETF vs bank capital used in the best solution
+    final etfUsed = _bestAllocations
+        .where((a) => a.option.type == InvestmentType.etf)
+        .fold<double>(0, (s, a) => s + a.amount);
+    final bankUsed = _bestAllocations
+        .where((a) => a.option.type == InvestmentType.bank)
+        .fold<double>(0, (s, a) => s + a.amount);
 
     return OptimizationResult(
       allocations: _bestAllocations,
@@ -225,23 +220,27 @@ class OptimizerService {
     required int minOptions,
     required int maxOptions,
   }) {
+    // Tracks the number of iterations the algorithm goes through
     _statesCount++;
 
-    // Soft prune: once a floor-meeting best exists, cut any branch that can
-    // never reach the floor itself — it can never outrank that best.
+    // Algorithm 2
+    // Soft prune: cut branches that can no longer reach the minOptions floor
     final remainingItems = options.length - index;
     final canReachFloor = currentSelections.length + remainingItems >= minOptions;
     final bestMeetsFloor = _bestAllocations.length >= minOptions;
     if (bestMeetsFloor && !canReachFloor) {
       _prunedCount++;
-      _steps.add(TraceStep(
-        type: StepType.pruned,
-        title: 'Diversification Pruned',
-        description: 'Cannot reach the minimum of $minOptions assets from here — branch cut',
-      ));
+      if (_steps.length < _maxTraceSteps) {
+        _steps.add(TraceStep(
+          type: StepType.pruned,
+          title: 'Diversification Pruned',
+          description: 'Cannot reach the minimum of $minOptions assets from here — branch cut',
+        ));
+      }
       return;
     }
 
+    // Leaf node: reached maxOptions selections or exhausted the list
     if (currentSelections.length == maxOptions || index == options.length) {
       if (currentSelections.isNotEmpty) {
         _evaluateSelection(
@@ -259,9 +258,9 @@ class OptimizerService {
     final newRisk = currentRisk + option.riskScore;
     final newBudget = currentUsedBudget + option.depositAmount;
 
-    // Hard prune, checked BEFORE including — matches "if weight[n] > W,
-    // case 1 (exclude) is the only possibility," no wasted recursive call.
+    // Hard prune: skip include-branch if it would exceed budget or risk cap
     if (newRisk <= maxRisk && newBudget <= capacity) {
+      // Include branch
       currentSelections.add(option);
       _backtrack(
         options: options, index: index + 1, currentSelections: currentSelections,
@@ -271,13 +270,16 @@ class OptimizerService {
       currentSelections.removeLast();
     } else {
       _prunedCount++;
-      _steps.add(TraceStep(
-        type: StepType.pruned,
-        title: 'Budget/Risk Pruned',
-        description: 'Including ${option.name} would exceed budget or risk — only exclude possible',
-      ));
+      if (_steps.length < _maxTraceSteps) {
+        _steps.add(TraceStep(
+          type: StepType.pruned,
+          title: 'Budget/Risk Pruned',
+          description: 'Including ${option.name} would exceed budget or risk — only exclude possible',
+        ));
+      }
     }
 
+    // Exclude branch
     _backtrack(
       options: options, index: index + 1, currentSelections: currentSelections,
       currentRisk: currentRisk, currentUsedBudget: currentUsedBudget, capacity: capacity,
@@ -292,6 +294,7 @@ class OptimizerService {
     required int currentRisk,
     required int minOptions,
   }) {
+    // Calculate profit for this combination and compare to current best
     final allocations = selection.map((opt) {
       final profit = opt.depositAmount * opt.annualReturnRate * timeFactor;
       return Allocation(option: opt, amount: opt.depositAmount, profit: profit, rank: 0);
@@ -299,12 +302,14 @@ class OptimizerService {
 
     final totalProfit = allocations.fold<double>(0, (sum, a) => sum + a.profit);
 
-    _steps.add(TraceStep(
-      type: StepType.evaluated,
-      title: 'Evaluated',
-      description: '${selection.map((e) => e.name).join(" + ")} · ₱${usedBudget.toStringAsFixed(0)} used',
-      profit: totalProfit,
-    ));
+    if (_steps.length < _maxTraceSteps) {
+      _steps.add(TraceStep(
+        type: StepType.evaluated,
+        title: 'Evaluated',
+        description: '${selection.map((e) => e.name).join(" + ")} · ₱${usedBudget.toStringAsFixed(0)} used',
+        profit: totalProfit,
+      ));
+    }
 
     final meetsFloorNew = selection.length >= minOptions;
     final meetsFloorBest = _bestAllocations.length >= minOptions;
@@ -327,14 +332,21 @@ class OptimizerService {
 
     allocations.sort((a, b) => b.profit.compareTo(a.profit));
     _bestAllocations = allocations.asMap().entries.map((e) {
-      return Allocation(option: e.value.option, amount: e.value.amount, profit: e.value.profit, rank: e.key + 1);
+      return Allocation(
+        option: e.value.option,
+        amount: e.value.amount,
+        profit: e.value.profit,
+        rank: e.key + 1,
+      );
     }).toList();
 
-    _steps.add(TraceStep(
-      type: StepType.bestFound,
-      title: 'New Best Found',
-      description: '${selection.map((e) => e.name).join(" + ")} · Profit ₱${totalProfit.toStringAsFixed(0)} · Risk $currentRisk',
-      profit: totalProfit,
-    ));
+    if (_steps.length < _maxTraceSteps) {
+      _steps.add(TraceStep(
+        type: StepType.bestFound,
+        title: 'New Best Found',
+        description: '${selection.map((e) => e.name).join(" + ")} · Profit ₱${totalProfit.toStringAsFixed(0)} · Risk $currentRisk',
+        profit: totalProfit,
+      ));
+    }
   }
 }
