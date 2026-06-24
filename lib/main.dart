@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pages/home.dart';
+import 'pages/settings.dart';
 
 void main() {
   runApp(const MyApp());
@@ -8,15 +9,30 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      //font
-      theme: ThemeData(fontFamily: 'Roboto'),
-      //remove debug ribbon on top right of screen
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
+    return ListenableBuilder(
+      listenable: AppSettings(),
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Investi-Aid',
+          themeMode: AppSettings().darkMode
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          theme: ThemeData(
+            colorSchemeSeed: Colors.indigo,
+            brightness: Brightness.light,
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorSchemeSeed: Colors.indigo,
+            brightness: Brightness.dark,
+            useMaterial3: true,
+          ),
+          home: const HomePage(),
+        );
+      },
     );
   }
- }
+}
+

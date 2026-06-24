@@ -1,256 +1,466 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_projects/pages/home.dart';
-import 'package:flutter_projects/pages/result.dart';
+import 'home.dart';
+import 'settings.dart';
+import '../services/etf_price_service.dart';
 
-class DetailsPage extends StatelessWidget {
+class DetailsPage extends StatefulWidget {
   const DetailsPage({super.key});
 
   @override
+  State<DetailsPage> createState() => _DetailsPageState();
+}
+
+class _DetailsPageState extends State<DetailsPage> {
+  final EtfPriceService _etfService = EtfPriceService();
+  final _settings = AppSettings();
+
+  // ── Currency helpers ──────────────────────────────────────────────────────
+
+  String get _currencySymbol => _settings.currency.split(' ').first;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.addListener(_onSettingsChanged);
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: _settings,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          bottomNavigationBar: _buildBottomNav(),
+          body: CustomScrollView(
+            slivers: [
+              _buildSliverHeader(),
+              FutureBuilder<List<EtfPriceData>>(
+                future: _etfService.getMonthlyPrices(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
 
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.deepPurple,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white60,
-        currentIndex: 2, // 2 = details.dart or details page - highlighted currently
+                  final prices = snapshot.data ?? const <EtfPriceData>[];
 
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => ResultPage()),
-            );
-          }
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => HomePage()),
-            );
-          }
-        },
+                  return SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.deepPurple[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Estimated free-tier API calls left: '
+                            '${_etfService.callsLeft}/${_etfService.dailyQuota}',
+                            style: const TextStyle(
+                              color: Colors.deepPurple,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        _buildCombinedTracker(prices),
+                        const SizedBox(height: 24),
+                        _buildInterestRatesCard(),
+                        const SizedBox(height: 40),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.insert_chart_outlined),
-            label: 'Stats',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_customize),
-            label: 'Browse',
-          ),
-        ],
+  // ── Sliver header ─────────────────────────────────────────────────────────
+
+  Widget _buildSliverHeader() {
+    final iconColor = Theme.of(context).colorScheme.onPrimary;
+
+    return SliverAppBar(
+      expandedHeight: 180,
+      pinned: true,
+      backgroundColor: Colors.deepPurple,
+      automaticallyImplyLeading: false,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios, color: iconColor, size: 20),
+        onPressed: () => Navigator.pop(context),
       ),
-
-      //header
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: Colors.deepPurple,
-            padding: EdgeInsets.only(
-              top: 50,
-              bottom: 30,
-              left: 20,
-              right: 20,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 24, bottom: 20),
+        title: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Market Insights',
+              style: TextStyle(
+                  color: iconColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
             ),
-            child: Column(
-              children: [
-                Text(
-                  'Investment Optimizer',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
+            Text(
+              'HISTORICAL TRENDS & LIVE PRICES',
+              style: TextStyle(
+                  color: iconColor.withOpacity(0.7),
+                  fontSize: 8,
+                  letterSpacing: 0.5),
+            ),
+          ],
+        ),
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.deepPurple, Colors.indigo],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Icon(
+                  Icons.show_chart,
+                  size: 200,
+                  color: iconColor.withOpacity(0.05),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'DETAILS',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 13,
-                    letterSpacing: 2,
-                  ),
-                ),
+              ),
             ],
           ),
         ),
- 
-        Expanded(
-        child:SingleChildScrollView(
-          padding:EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      ),
+    );
+  }
+
+  // ── ETF tracker card ──────────────────────────────────────────────────────
+
+  Widget _buildCombinedTracker(List<EtfPriceData> prices) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Investment Details',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Here are the bank promos offered by PH digital banks and prices of specific ETFs',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                    ),                   
-                  ],
+              Text(
+                'ETF Market Performance',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              
-              SizedBox(height: 16),
-
-                  // Table List of Bank Rates and ETF's
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bank Promos & ETF Returns',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Divider(),
-
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-
-                            // Banks
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Digital Banks (Annual)',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  _bankRow('GoTyme',   '6.00%'),
-                                  _bankRow('Tonik',    '6.50%'),
-                                  _bankRow('Maya',     '3.50%'),
-                                  _bankRow('CIMB',     '2.50%'),
-                                  _bankRow('Maribank', '2.50%'),
-                                ],
-                              ),
-                            ),
-
-                            SizedBox(width: 12),
-
-                            // ETFs
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'ETFs (avg monthly return)',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  _etfRow('QQQ', '~1.80%'),
-                                  _etfRow('VOO', '~1.20%'),
-                                  _etfRow('VTI', '~1.15%'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 12),
-
-                        // Warning
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          color: Color(0xFFFFF3E0),
-                          child: Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded,
-                                  color: Colors.orange, size: 16),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'ETF returns are estimated, not guaranteed.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.orange,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  // ── Display Currency setting ─────────────────────────
+                  'LIVE $_currencySymbol',
+                  style: TextStyle(
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
                   ),
-          ],
-        )
-      ),
-    )
-      ],
-    )
-  );
-}
- Widget _bankRow(String name, String rate) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(name, style: TextStyle(fontSize: 13)),
-          Text(rate,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.blue,
-              )),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          // ── Animate Results setting ──────────────────────────────────
+          // When enabled, each ETF row fades + slides in with a staggered
+          // delay; otherwise rows are rendered directly.
+          ...prices.asMap().entries.map(
+                (e) => _settings.animateResults
+                    ? TweenAnimationBuilder<double>(
+                        duration: Duration(
+                          milliseconds:
+                              200 + (e.key * 80).clamp(0, 800),
+                        ),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        builder: (context, value, child) => Opacity(
+                          opacity: value,
+                          child: Transform.translate(
+                            offset: Offset(0, 16 * (1 - value)),
+                            child: child,
+                          ),
+                        ),
+                        child: _buildPriceItem(e.value),
+                      )
+                    : _buildPriceItem(e.value),
+              ),
         ],
       ),
     );
   }
 
-  Widget _etfRow(String ticker, String rate) {
+  Widget _buildPriceItem(EtfPriceData price) {
+    final isPositive = price.monthlyChange >= 0;
+    final subText = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Padding(
-      padding: EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
         children: [
-          Text(ticker, style: TextStyle(fontSize: 13)),
-          Text(rate,
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.deepPurple[50],
+                radius: 20,
+                child: Text(
+                  price.ticker[0],
+                  style: const TextStyle(
+                    color: Colors.deepPurple,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      price.ticker,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      price.lastUpdated,
+                      style: TextStyle(color: subText, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    // ── Display Currency + Decimal Places settings ───────
+                    '$_currencySymbol${price.currentPrice.toStringAsFixed(_settings.decimalPlaces)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        isPositive
+                            ? Icons.trending_up
+                            : Icons.trending_down,
+                        size: 12,
+                        color: isPositive ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${isPositive ? '+' : ''}${price.monthlyChange.toStringAsFixed(2)}%',
+                        style: TextStyle(
+                          color: isPositive ? Colors.green : Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: Theme.of(context).dividerColor),
+        ],
+      ),
+    );
+  }
+
+  // ── Interest rates card ───────────────────────────────────────────────────
+
+  Widget _buildInterestRatesCard() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars, color: Colors.orange, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                'Investment Scoring',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 32),
+            child: Text(
+              'Ranked by Annual Yield',
               style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.deepPurple,
-              )),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          _bankRow('SeaBank', '4.25%', Icons.waves),
+          _bankRow('UNO Digital', '4.25%', Icons.verified_user_outlined),
+          _bankRow('GoTyme Bank', '4.00%', Icons.credit_card_outlined),
+          _bankRow('Tonik Bank', '4.00%', Icons.savings_outlined),
+          _bankRow('Maya Bank', '3.50%',
+              Icons.account_balance_wallet_outlined),
+          _bankRow('CIMB Bank', '2.50%', Icons.account_balance_outlined),
+        ],
+      ),
+    );
+  }
+
+  Widget _bankRow(String name, String rate, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child:
+                    Icon(icon, size: 20, color: Colors.deepPurple),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple[50],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  rate,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepPurple,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: Theme.of(context).dividerColor),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom nav ────────────────────────────────────────────────────────────
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05), blurRadius: 10),
+        ],
+      ),
+      child: BottomNavigationBar(
+        backgroundColor: Theme.of(context).cardColor,
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey,
+        currentIndex: 2,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomePage()),
+              (route) => false,
+            );
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.analytics_outlined), label: 'Analysis'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'Details'),
         ],
       ),
     );
